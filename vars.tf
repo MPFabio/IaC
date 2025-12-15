@@ -1,14 +1,9 @@
-variable "vm_static_ips" {
+variable "prod_vm_ips" {
   type    = list(string)
   default = []
 }
 
-variable "service_account_email" {
-  type    = string
-  default = ""
-}
-
-variable "gcs_backend_bucket" {
-  type    = string
-  default = "terraform-state-fmt-prod"
+variable "dev_vm_ips" {
+  type    = list(string)
+  default = []
 }
