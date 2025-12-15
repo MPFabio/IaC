@@ -1,0 +1,35 @@
+name: Terraform Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environnement à détruire'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+          - all
+
+env:
+  TF_VERSION: '1.14.0'
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 1
+      matrix:
+        env: ${{ github.event.inputs.environment == 'all' && fromJson('["dev", "prod"]') || fromJson(format('["{0}"]', github.event.inputs.environment)) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
+      - run: terraform -chdir=envs/${{ matrix.env }} init
+      - run: terraform -chdir=envs/${{ matrix.env }} destroy -auto-approve
+
