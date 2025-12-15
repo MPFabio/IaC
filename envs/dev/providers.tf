@@ -12,6 +12,5 @@ terraform {
 provider "google" {
   project = "iac-fmt"
   region  = "europe-west9"
-  zone    = "europe-west9-a"
+  zone    = "europe-west9-b"
 }
-
