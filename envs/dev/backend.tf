@@ -1,6 +1,7 @@
 terraform {
   backend "gcs" {
-    bucket = "terraform-state-fmt-prod"
+    bucket = "tfstate-fmt-dev"
     prefix = "terraform/state"
   }
 }
+

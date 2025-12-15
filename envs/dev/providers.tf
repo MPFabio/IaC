@@ -10,7 +10,8 @@ terraform {
 }
 
 provider "google" {
-  project = local.project_id
-  region  = local.region
-  zone    = local.zone
+  project = "iac-fmt"
+  region  = "europe-west9"
+  zone    = "europe-west9-a"
 }
+
