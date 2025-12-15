@@ -1,5 +1,6 @@
 terraform {
   backend "gcs" {
-    bucket  = "storage-fmt-prod"
+    bucket = "terraform-state-fmt-prod"
+    prefix = "terraform/state"
   }
 }

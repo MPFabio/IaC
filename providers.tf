@@ -1,7 +1,16 @@
 terraform {
+  required_version = ">= 1.0.0"
+
   required_providers {
     google = {
-      version = "7.12.0"
+      source  = "hashicorp/google"
+      version = "~> 5.0"
     }
   }
+}
+
+provider "google" {
+  project = local.project_id
+  region  = local.region
+  zone    = local.zone
 }

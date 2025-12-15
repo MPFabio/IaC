@@ -1,14 +1,14 @@
-variable "location" {
-  description = "La région GCP où les ressources seront déployées"
-  default     = "EU"
+variable "vm_static_ips" {
+  type    = list(string)
+  default = []
 }
 
-variable "zone" {
-  description = "La zone où les ressources seront déployées"
-  default     = "europe-west9-a"  
+variable "service_account_email" {
+  type    = string
+  default = ""
 }
 
-variable "resource_name" {
-  description = "Le nom de base utilisé pour nommer les ressources"
-  default     = "fmt"  
+variable "gcs_backend_bucket" {
+  type    = string
+  default = "terraform-state-fmt-prod"
 }

@@ -1,34 +1,42 @@
-resource "google_compute_network" "vpc_network" {
-  project                                   = "my-project-${var.resource_name}"
-  name                                      = "vpc-network-${var.resource_name}"
-  auto_create_subnetworks                   = true
+module "vpc" {
+  source = "./modules/vpc"
+
+  vpc_name    = local.vpc_name
+  project_id  = local.project_id
+  region      = local.region
+  subnet_cidr = local.subnet_cidr
 }
 
-resource "google_storage_bucket" "no-public-access" {
-  name          = "no-public-access-bucket-${var.resource_name}"
-  location      = var.location
-  force_destroy = false
+module "compute" {
+  source = "./modules/compute"
 
-  public_access_prevention = "enforced"
+  vm_name              = local.vm_name
+  vm_count             = local.vm_count
+  project_id           = local.project_id
+  region               = local.region
+  zone                 = local.zone
+  machine_type         = local.machine_type
+  boot_image           = local.boot_image
+  disk_size_gb         = local.disk_size_gb
+  vpc_self_link        = module.vpc.vpc_self_link
+  subnet_self_link     = module.vpc.subnet_self_link
+  network_tags         = local.network_tags
+  static_ips           = local.vm_static_ips
+  service_account_email = var.service_account_email
+  environment          = local.environment
+
+  depends_on = [module.vpc]
 }
 
-resource "google_compute_instance" "default" {
-  name         = "instance-${var.resource_name}"
-  machine_type = "n2-standard-2"
-  zone         = var.zone
+module "storage" {
+  source = "./modules/storage"
 
-  tags = ["foo", "bar"]
-
-  boot_disk {
-    initialize_params {
-      image = "debian-cloud/debian-11"
-      labels = {
-        my_label = "value"
-      }
-    }
-  }
-
-  network_interface {
-    network = "default"
-  }
+  bucket_name       = local.storage_name
+  project_id        = local.project_id
+  location          = local.storage_location
+  storage_class     = local.storage_class
+  force_destroy     = local.storage_force_destroy
+  enable_versioning = local.enable_versioning
+  lifecycle_rules   = local.storage_lifecycle_rules
+  environment       = local.environment
 }
