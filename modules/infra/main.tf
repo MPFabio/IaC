@@ -5,10 +5,14 @@ resource "google_compute_network" "vpc" {
 }
 
 resource "google_compute_address" "vm_ip" {
-  for_each = toset(var.vm_ips)
-  name     = "vm-fmt-${var.environment}-ip-${each.key}"
-  project  = var.project_id
-  region   = var.region
+  count   = length(var.vm_ips) > 0 ? 0 : 2
+  name    = "vm-fmt-${var.environment}-ip-${count.index + 1}"
+  project = var.project_id
+  region  = var.region
+}
+
+locals {
+  vm_ips = length(var.vm_ips) > 0 ? var.vm_ips : google_compute_address.vm_ip[*].address
 }
 
 resource "google_compute_instance" "vm" {
@@ -28,6 +32,10 @@ resource "google_compute_instance" "vm" {
 
   network_interface {
     network = google_compute_network.vpc.id
+
+    access_config {
+      nat_ip = element(local.vm_ips, count.index)
+    }
   }
 
   shielded_instance_config {
