@@ -25,3 +25,8 @@ variable "vm_ips" {
 }
 
 
+
+
+
+
+

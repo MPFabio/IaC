@@ -8,3 +8,8 @@ module "infra" {
   location    = var.location
   vm_ips      = var.vm_ips
 }
+
+
+
+
+
