@@ -30,3 +30,7 @@ variable "vm_ips" {
 
 
 
+
+
+
+

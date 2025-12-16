@@ -8,7 +8,7 @@ resource "google_compute_instance" "vm" {
   for_each     = toset(var.vm_ips)
   name         = "vm-fmt-${var.environment}-${index(var.vm_ips, each.value) + 1}"
   project      = var.project_id
-  machine_type = "e2-medium"
+  machine_type = "e2-micro"
   zone         = var.zone
 
   boot_disk {
