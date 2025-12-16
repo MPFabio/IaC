@@ -7,3 +7,5 @@ variable "vm_ips" {
 
 
 
+
+
