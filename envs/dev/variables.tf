@@ -3,3 +3,6 @@ variable "vm_ips" {
   default = []
 }
 
+
+
+

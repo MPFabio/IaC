@@ -13,4 +13,3 @@ output "vm_external_ips" {
 output "storage_name" {
   value = google_storage_bucket.storage.name
 }
-

@@ -17,12 +17,8 @@ modules/
 
 ## Prérequis
 
-Créer les buckets backend avant de lancer Terraform :
+Avoir les buckets backend avant de lancer Terraform :
 
-```bash
-gsutil mb -p iac-fmt -l EU gs://tfstate-fmt-prod
-gsutil mb -p iac-fmt -l EU gs://tfstate-fmt-dev
-```
 
 ## Usage
 
