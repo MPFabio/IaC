@@ -3,11 +3,11 @@ output "vpc_name" {
 }
 
 output "vm_names" {
-  value = google_compute_instance.vm[*].name
+  value = [for vm in google_compute_instance.vm : vm.name]
 }
 
 output "vm_external_ips" {
-  value = google_compute_instance.vm[*].network_interface[0].access_config[0].nat_ip
+  value = [for vm in google_compute_instance.vm : vm.network_interface[0].access_config[0].nat_ip]
 }
 
 output "storage_name" {

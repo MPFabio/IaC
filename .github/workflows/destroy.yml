@@ -17,6 +17,7 @@ env:
 jobs:
   destroy:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -25,5 +26,5 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
-      - run: terraform -chdir=envs/${{ inputs.environment }} init
-      - run: terraform -chdir=envs/${{ inputs.environment }} destroy -auto-approve
+      - run: terraform init -backend-config="bucket=tfstate-fmt-${{ inputs.environment }}"
+      - run: terraform destroy -var-file=envs/${{ inputs.environment }}/terraform.tfvars -auto-approve

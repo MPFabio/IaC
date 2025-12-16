@@ -4,20 +4,9 @@ resource "google_compute_network" "vpc" {
   auto_create_subnetworks = true
 }
 
-resource "google_compute_address" "vm_ip" {
-  count   = length(var.vm_ips) > 0 ? 0 : 2
-  name    = "vm-fmt-${var.environment}-ip-${count.index + 1}"
-  project = var.project_id
-  region  = var.region
-}
-
-locals {
-  vm_ips = length(var.vm_ips) > 0 ? var.vm_ips : google_compute_address.vm_ip[*].address
-}
-
 resource "google_compute_instance" "vm" {
-  count        = 2
-  name         = "vm-fmt-${var.environment}-${count.index + 1}"
+  for_each     = toset(var.vm_ips)
+  name         = "vm-fmt-${var.environment}-${index(var.vm_ips, each.value) + 1}"
   project      = var.project_id
   machine_type = "e2-medium"
   zone         = var.zone
@@ -34,7 +23,7 @@ resource "google_compute_instance" "vm" {
     network = google_compute_network.vpc.id
 
     access_config {
-      nat_ip = element(local.vm_ips, count.index)
+      nat_ip = each.value
     }
   }
 
