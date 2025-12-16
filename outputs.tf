@@ -14,3 +14,4 @@ output "storage_name" {
   value = module.infra.storage_name
 }
 
+
