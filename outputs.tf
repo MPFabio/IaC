@@ -13,10 +13,11 @@ output "vm_external_ips" {
   value       = module.infra.vm_external_ips
 }
 
-output "storage_name" {
-  description = "Nom du bucket de stockage créé"
-  value       = module.infra.storage_name
-}
+# Output désactivé car le bucket n'est plus créé
+# output "storage_name" {
+#   description = "Nom du bucket de stockage créé"
+#   value       = module.infra.storage_name
+# }
 
 output "ssh_commands" {
   description = "Commandes SSH prêtes à l'emploi pour se connecter aux VMs"

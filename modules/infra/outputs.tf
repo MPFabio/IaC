@@ -13,10 +13,11 @@ output "vm_external_ips" {
   value       = [for vm in google_compute_instance.vm : vm.network_interface[0].access_config[0].nat_ip]
 }
 
-output "storage_name" {
-  description = "Nom du bucket de stockage créé"
-  value       = google_storage_bucket.storage.name
-}
+# Output désactivé car le bucket n'est plus créé
+# output "storage_name" {
+#   description = "Nom du bucket de stockage créé"
+#   value       = google_storage_bucket.storage.name
+# }
 
 output "ssh_commands" {
   description = "Commandes SSH prêtes à l'emploi pour se connecter aux VMs"

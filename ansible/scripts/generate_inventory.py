@@ -92,20 +92,30 @@ def generate_inventory(outputs: Dict[str, Any], environment: str) -> Dict[str, A
     if not vm_ips:
         print(f"Attention: vm_external_ips est vide. Structure complète: {json.dumps(outputs, indent=2)}", file=sys.stderr)
 
-    # Filtrer les valeurs nulles ou vides
+    # Filtrer les valeurs nulles, vides ou None
     if isinstance(vm_names, list):
-        vm_names = [name for name in vm_names if name and name != "null"]
+        vm_names = [name for name in vm_names if name and name != "null" and name is not None]
+    elif vm_names is None:
+        vm_names = []
+    
     if isinstance(vm_ips, list):
-        vm_ips = [ip for ip in vm_ips if ip and ip != "null"]
+        vm_ips = [ip for ip in vm_ips if ip and ip != "null" and ip is not None]
+    elif vm_ips is None:
+        vm_ips = []
+    
+    # Debug final avant validation
+    print(f"DEBUG FINAL: vm_names après filtrage: {vm_names} (type: {type(vm_names)}, longueur: {len(vm_names) if isinstance(vm_names, list) else 'N/A'})", file=sys.stderr)
+    print(f"DEBUG FINAL: vm_ips après filtrage: {vm_ips} (type: {type(vm_ips)}, longueur: {len(vm_ips) if isinstance(vm_ips, list) else 'N/A'})", file=sys.stderr)
     
     if not vm_names or not vm_ips:
-        print("Erreur: Impossible de générer l'inventaire sans noms ou IPs de VMs", file=sys.stderr)
-        print(f"  vm_names: {vm_names}", file=sys.stderr)
-        print(f"  vm_ips: {vm_ips}", file=sys.stderr)
+        print("ERREUR: Impossible de générer l'inventaire sans noms ou IPs de VMs", file=sys.stderr)
+        print(f"  vm_names: {vm_names} (type: {type(vm_names)})", file=sys.stderr)
+        print(f"  vm_ips: {vm_ips} (type: {type(vm_ips)})", file=sys.stderr)
+        print(f"  Structure complète des outputs: {json.dumps(outputs, indent=2)}", file=sys.stderr)
         return inventory
 
     if len(vm_names) != len(vm_ips):
-        print(f"Erreur: Nombre de VMs ({len(vm_names)}) ne correspond pas au nombre d'IPs ({len(vm_ips)})", file=sys.stderr)
+        print(f"ERREUR: Nombre de VMs ({len(vm_names)}) ne correspond pas au nombre d'IPs ({len(vm_ips)})", file=sys.stderr)
         print(f"  vm_names: {vm_names}", file=sys.stderr)
         print(f"  vm_ips: {vm_ips}", file=sys.stderr)
         return inventory

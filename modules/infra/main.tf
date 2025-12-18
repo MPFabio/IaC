@@ -43,11 +43,13 @@ resource "google_compute_instance" "vm" {
   }
 }
 
-resource "google_storage_bucket" "storage" {
-  name                        = "storage-fmt-${var.environment}"
-  project                     = var.project_id
-  location                    = var.location
-  force_destroy               = true
-  uniform_bucket_level_access = true
-  public_access_prevention    = "enforced"
-}
+# Bucket de stockage désactivé pour éviter les coûts
+# Si nécessaire, décommentez cette ressource
+# resource "google_storage_bucket" "storage" {
+#   name                        = "storage-fmt-${var.environment}"
+#   project                     = var.project_id
+#   location                    = var.location
+#   force_destroy               = true
+#   uniform_bucket_level_access = true
+#   public_access_prevention    = "enforced"
+# }
