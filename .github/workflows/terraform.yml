@@ -135,7 +135,16 @@ jobs:
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
       - name: Attendre que les VMs soient prêtes
-        run: sleep 60
+        run: |
+          echo "Attente de 120 secondes pour que les VMs soient complètement initialisées..."
+          sleep 120
+          echo "Vérification de la connectivité SSH..."
+          # Tenter une connexion SSH pour vérifier que les VMs sont prêtes
+          FIRST_IP=$(jq -r '.vm_external_ips.value[0] // empty' terraform_outputs.json)
+          if [ -n "$FIRST_IP" ] && [ "$FIRST_IP" != "null" ]; then
+            echo "Test de connexion SSH à $FIRST_IP..."
+            timeout 30 bash -c 'until ssh -i ~/.ssh/ansible_key -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ansible@'"$FIRST_IP"' echo "Connexion réussie" 2>/dev/null; do echo "En attente..."; sleep 10; done' || echo "La VM n'est pas encore prête, mais on continue..."
+          fi
       - name: Vérifier la configuration Ansible
         run: |
           cd ansible

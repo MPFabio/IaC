@@ -7,12 +7,10 @@ resource "google_compute_network" "vpc" {
 # Créer 2 VMs par défaut
 locals {
   vm_count = 2
-  # Version avec vm_ips (commentée) :
+  # Version avec vm_ips :
   # vm_count = length(var.vm_ips) > 0 ? length(var.vm_ips) : 2
 }
 
-# Créer les adresses IP réservées statiques automatiquement
-# Ces IPs seront assignées aux VMs et utilisables par Ansible via SSH
 resource "google_compute_address" "vm_ip" {
   count   = local.vm_count
   name    = "vm-fmt-${var.environment}-ip-${count.index + 1}"
@@ -43,11 +41,9 @@ resource "google_compute_instance" "vm" {
     network = google_compute_network.vpc.id
 
     access_config {
-      # IP statique créée automatiquement par Terraform
-      # Les VMs auront des IPs stables utilisables directement par Ansible via SSH
       nat_ip = google_compute_address.vm_ip[count.index].address
       
-      # Version avec attribution manuelle d'IPs depuis var.vm_ips (commentée) :
+      # Version avec attribution manuelle d'IPs depuis var.vm_ips :
       # nat_ip = length(var.vm_ips) > 0 ? var.vm_ips[count.index] : google_compute_address.vm_ip[count.index].address
     }
   }
