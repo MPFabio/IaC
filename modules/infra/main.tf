@@ -4,6 +4,23 @@ resource "google_compute_network" "vpc" {
   auto_create_subnetworks = true
 }
 
+# Règle de firewall pour autoriser SSH depuis n'importe où
+resource "google_compute_firewall" "allow_ssh" {
+  name    = "allow-ssh-${var.environment}"
+  network = google_compute_network.vpc.name
+  project = var.project_id
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["ssh-allowed"]
+
+  description = "Autorise les connexions SSH depuis n'importe où"
+}
+
 # Créer 2 VMs par défaut
 locals {
   vm_count = 2
@@ -24,6 +41,8 @@ resource "google_compute_instance" "vm" {
   project      = var.project_id
   machine_type = "e2-micro"
   zone         = var.zone
+  
+  tags = ["ssh-allowed"]
   
   metadata = {
     ssh-keys = "ansible:${var.ssh_public_key}"
