@@ -60,3 +60,53 @@ jobs:
           name: plan-${{ inputs.environment }}
       - run: terraform init -backend-config="bucket=storage-fmt" -backend-config="prefix=${{ inputs.environment }}"
       - run: terraform apply -auto-approve plan
+      - name: Récupérer les outputs Terraform
+        run: terraform output -json > terraform_outputs.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terraform-outputs-${{ inputs.environment }}
+          path: terraform_outputs.json
+
+  ansible:
+    needs: apply
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: terraform-outputs-${{ inputs.environment }}
+          path: .
+      - name: Configurer la clé SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > ~/.ssh/ansible_key
+          chmod 600 ~/.ssh/ansible_key
+          ssh-keyscan -H $(jq -r '.vm_external_ips.value[0]' terraform_outputs.json) >> ~/.ssh/known_hosts 2>/dev/null || true
+      - name: Installer Python et Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-pip
+          pip3 install ansible
+      - name: Générer l'inventaire dynamique
+        run: |
+          cd ansible
+          python3 scripts/generate_inventory.py ../terraform_outputs.json ${{ inputs.environment }} > inventory.json
+        env:
+          ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
+      - name: Attendre que les VMs soient prêtes
+        run: sleep 60
+      - name: Exécuter le playbook Ansible
+        run: |
+          cd ansible
+          ansible-playbook -i inventory.json Playbooks/Deploy_web.yml
+        env:
+          ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+      - name: Exécuter les tests
+        run: |
+          cd ansible
+          ansible-playbook -i inventory.json Playbooks/Tests/test_nginx.yml
+        env:
+          ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
+          ANSIBLE_HOST_KEY_CHECKING: "False"

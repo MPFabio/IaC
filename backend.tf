@@ -1,9 +1,3 @@
 terraform {
   backend "gcs" {}
 }
-
-
-
-
-
-

@@ -1,0 +1,8 @@
+---
+- name: Installer nginx sur les webservers
+  hosts: webservers
+  become: yes
+
+  roles:
+    - Common
+    - Webservers

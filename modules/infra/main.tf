@@ -10,6 +10,10 @@ resource "google_compute_instance" "vm" {
   project      = var.project_id
   machine_type = "e2-micro"
   zone         = var.zone
+  
+  metadata = {
+    ssh-keys = "ansible:${var.ssh_public_key}"
+  }
 
   boot_disk {
     initialize_params {

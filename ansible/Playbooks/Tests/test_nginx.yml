@@ -1,0 +1,17 @@
+---
+- name: Tests nginx
+  hosts: webservers
+  become: yes
+
+  tasks:
+    - name: Vérifier que nginx est actif
+      systemd:
+        name: nginx
+      register: nginx_status
+
+    - name: Afficher le statut
+      assert:
+        that:
+          - nginx_status.status.ActiveState == "active"
+        fail_msg: "nginx n'est pas actif"
+

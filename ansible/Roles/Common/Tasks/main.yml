@@ -1,0 +1,14 @@
+---
+- name: Mettre à jour le cache des paquets
+  apt:
+    update_cache: yes
+  become: yes
+
+- name: Installer les paquets de base
+  apt:
+    name:
+      - curl
+      - wget
+    state: present
+  become: yes
+
