@@ -82,7 +82,13 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > ~/.ssh/ansible_key
           chmod 600 ~/.ssh/ansible_key
-          ssh-keyscan -H $(jq -r '.vm_external_ips.value[0]' terraform_outputs.json) >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Ajouter les IPs aux known_hosts si disponibles
+          if [ -f terraform_outputs.json ]; then
+            FIRST_IP=$(jq -r '.vm_external_ips.value[0] // empty' terraform_outputs.json)
+            if [ -n "$FIRST_IP" ] && [ "$FIRST_IP" != "null" ]; then
+              ssh-keyscan -H "$FIRST_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+            fi
+          fi
       - name: Installer Python et Ansible
         run: |
           sudo apt-get update
@@ -90,7 +96,16 @@ jobs:
           pip3 install ansible
       - name: Vérifier les outputs Terraform
         run: |
+          echo "=== Fichier terraform_outputs.json ==="
+          ls -la terraform_outputs.json
+          echo "=== Contenu complet ==="
+          cat terraform_outputs.json
+          echo "=== Clés disponibles ==="
           cat terraform_outputs.json | jq 'keys'
+          echo "=== vm_names ==="
+          cat terraform_outputs.json | jq '.vm_names'
+          echo "=== vm_external_ips ==="
+          cat terraform_outputs.json | jq '.vm_external_ips'
       - name: Générer l'inventaire dynamique
         run: |
           cd ansible

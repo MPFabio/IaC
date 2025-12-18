@@ -26,5 +26,5 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
-      - run: terraform init -backend-config="bucket=tfstate-fmt-${{ inputs.environment }}"
+      - run: terraform init -backend-config="bucket=storage-fmt" -backend-config="prefix=${{ inputs.environment }}"
       - run: terraform destroy -var-file=envs/${{ inputs.environment }}/terraform.tfvars -auto-approve
