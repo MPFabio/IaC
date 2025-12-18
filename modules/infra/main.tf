@@ -4,9 +4,25 @@ resource "google_compute_network" "vpc" {
   auto_create_subnetworks = true
 }
 
+# Créer 2 VMs par défaut
+locals {
+  vm_count = 2
+  # Version avec vm_ips (commentée) :
+  # vm_count = length(var.vm_ips) > 0 ? length(var.vm_ips) : 2
+}
+
+# Créer les adresses IP réservées statiques automatiquement
+# Ces IPs seront assignées aux VMs et utilisables par Ansible via SSH
+resource "google_compute_address" "vm_ip" {
+  count   = local.vm_count
+  name    = "vm-fmt-${var.environment}-ip-${count.index + 1}"
+  project = var.project_id
+  region  = var.region
+}
+
 resource "google_compute_instance" "vm" {
-  for_each     = toset(var.vm_ips)
-  name         = "vm-fmt-${var.environment}-${index(var.vm_ips, each.value) + 1}"
+  count        = local.vm_count
+  name         = "vm-fmt-${var.environment}-${count.index + 1}"
   project      = var.project_id
   machine_type = "e2-micro"
   zone         = var.zone
@@ -27,7 +43,12 @@ resource "google_compute_instance" "vm" {
     network = google_compute_network.vpc.id
 
     access_config {
-      nat_ip = each.value
+      # IP statique créée automatiquement par Terraform
+      # Les VMs auront des IPs stables utilisables directement par Ansible via SSH
+      nat_ip = google_compute_address.vm_ip[count.index].address
+      
+      # Version avec attribution manuelle d'IPs depuis var.vm_ips (commentée) :
+      # nat_ip = length(var.vm_ips) > 0 ? var.vm_ips[count.index] : google_compute_address.vm_ip[count.index].address
     }
   }
 
