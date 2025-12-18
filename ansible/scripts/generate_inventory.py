@@ -32,6 +32,7 @@ def generate_inventory(outputs: Dict[str, Any], environment: str) -> Dict[str, A
                     "hosts": {},
                     "vars": {
                         "ansible_user": "ansible",
+                        "ansible_python_interpreter": "/usr/bin/python3",
                         "ansible_ssh_private_key_file": os.getenv("ANSIBLE_SSH_KEY_PATH", "~/.ssh/ansible_key"),
                         "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3"
                     }
