@@ -45,7 +45,9 @@ resource "google_compute_instance" "vm" {
   tags = ["ssh-allowed"]
   
   metadata = {
-    ssh-keys = "ansible:${var.ssh_public_key}"
+    # Format: username:ssh-rsa KEY comment
+    # Cela crée l'utilisateur "ansible" avec la clé SSH
+    ssh-keys = "ansible:${trimspace(var.ssh_public_key)}"
   }
 
   boot_disk {

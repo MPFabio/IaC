@@ -77,117 +77,35 @@ jobs:
         with:
           name: terraform-outputs-${{ inputs.environment }}
           path: .
-      - name: Vérifier que l'artifact est téléchargé
-        run: |
-          echo "=== Fichiers dans le répertoire ==="
-          ls -la
-          echo "=== Vérification de terraform_outputs.json ==="
-          if [ -f terraform_outputs.json ]; then
-            echo "Fichier existe"
-            echo "Taille: $(wc -c < terraform_outputs.json) bytes"
-            echo "Premières lignes:"
-            head -20 terraform_outputs.json
-          else
-            echo "ERREUR: terraform_outputs.json n'existe pas!"
-            exit 1
-          fi
       - name: Configurer la clé SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > ~/.ssh/ansible_key
           chmod 600 ~/.ssh/ansible_key
-          # Vérifier que la clé privée est valide et extraire la clé publique
-          echo "=== Vérification de la clé privée ==="
-          ssh-keygen -y -f ~/.ssh/ansible_key > /tmp/public_key_from_private.pub 2>&1
-          if [ $? -eq 0 ]; then
-            echo "✅ Clé privée valide"
-            echo "=== Clé publique extraite de la clé privée (sans commentaire) ==="
-            PUBLIC_KEY_FROM_PRIVATE=$(cat /tmp/public_key_from_private.pub | awk '{print $1" "$2}')
-            echo "$PUBLIC_KEY_FROM_PRIVATE"
-            echo ""
-            echo "⚠️  IMPORTANT: Cette clé publique doit correspondre EXACTEMENT à celle dans terraform.tfvars"
-            echo "   (sans le commentaire 'ansible' à la fin)"
-          else
-            echo "❌ ERREUR: Clé privée invalide!"
-            cat /tmp/public_key_from_private.pub
-            exit 1
-          fi
-          # Ajouter les IPs aux known_hosts si disponibles
+          ssh-keygen -y -f ~/.ssh/ansible_key > /dev/null 2>&1 || (echo "Clé privée invalide" && exit 1)
           if [ -f terraform_outputs.json ]; then
             FIRST_IP=$(jq -r '.vm_external_ips.value[0] // empty' terraform_outputs.json)
-            if [ -n "$FIRST_IP" ] && [ "$FIRST_IP" != "null" ]; then
-              echo ""
-              echo "=== Test de connexion SSH ==="
-              echo "IP de la première VM: $FIRST_IP"
-              echo "Ajout de $FIRST_IP aux known_hosts..."
-              ssh-keyscan -H "$FIRST_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
-              echo "Tentative de connexion SSH..."
-              ssh -v -i ~/.ssh/ansible_key -o ConnectTimeout=15 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ansible@$FIRST_IP "echo 'Connexion SSH réussie!'" 2>&1 || echo "❌ Connexion SSH échouée"
-            fi
+            [ -n "$FIRST_IP" ] && [ "$FIRST_IP" != "null" ] && ssh-keyscan -H "$FIRST_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
           fi
       - name: Installer Python et Ansible
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3 python3-pip
-          pip3 install ansible
-      - name: Vérifier les outputs Terraform
-        run: |
-          echo "=== Fichier terraform_outputs.json ==="
-          ls -la terraform_outputs.json
-          echo "=== Contenu complet ==="
-          cat terraform_outputs.json
-          echo "=== Clés disponibles ==="
-          cat terraform_outputs.json | jq 'keys'
-          echo "=== vm_names ==="
-          cat terraform_outputs.json | jq '.vm_names'
-          echo "=== vm_external_ips ==="
-          cat terraform_outputs.json | jq '.vm_external_ips'
+          sudo apt-get update -qq
+          sudo apt-get install -y python3 python3-pip > /dev/null 2>&1
+          pip3 install ansible > /dev/null 2>&1
       - name: Générer l'inventaire dynamique
         run: |
           cd ansible
-          echo "=== Génération de l'inventaire ==="
-          # Générer l'inventaire et capturer les messages de debug
-          python3 scripts/generate_inventory.py ../terraform_outputs.json ${{ inputs.environment }} > inventory.json 2>debug.log || true
-          echo "=== Messages de debug ==="
-          cat debug.log || true
-          echo "=== Inventaire généré ==="
-          cat inventory.json | jq '.' || echo "ERREUR: inventory.json invalide ou vide"
-          echo "=== Hosts trouvés ==="
-          cat inventory.json | jq '.all.children.webservers.hosts | keys' || echo "Aucun host trouvé"
+          python3 scripts/generate_inventory.py ../terraform_outputs.json ${{ inputs.environment }} > inventory.json 2>/dev/null
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
       - name: Attendre que les VMs soient prêtes
         run: |
-          # echo "Attente de 120 secondes pour que les VMs soient complètement initialisées..."
-          # sleep 120
-          echo "Vérification de la connectivité SSH..."
-          # Tenter une connexion SSH pour vérifier que les VMs sont prêtes
+          sleep 60
           FIRST_IP=$(jq -r '.vm_external_ips.value[0] // empty' terraform_outputs.json)
-          if [ -n "$FIRST_IP" ] && [ "$FIRST_IP" != "null" ]; then
-            echo "Test de connexion SSH à $FIRST_IP..."
-            timeout 30 bash -c 'until ssh -i ~/.ssh/ansible_key -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ansible@'"$FIRST_IP"' echo "Connexion réussie" 2>/dev/null; do echo "En attente..."; sleep 10; done' || echo "La VM n'est pas encore prête, mais on continue..."
-          fi
-      - name: Vérifier la configuration Ansible
-        run: |
-          cd ansible
-          echo "Vérification de la structure Ansible:"
-          ls -la Roles/ || echo "Avertissement: Répertoire Roles/ non trouvé"
-          cat Ansible.cfg || echo "Avertissement: Ansible.cfg non trouvé"
-          echo "Vérification des rôles disponibles:"
-          ls -la Roles/*/Tasks/main.yml 2>/dev/null || echo "Aucun rôle trouvé"
+          [ -n "$FIRST_IP" ] && [ "$FIRST_IP" != "null" ] && timeout 30 bash -c 'until ssh -i ~/.ssh/ansible_key -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ansible@'"$FIRST_IP"' echo "OK" 2>/dev/null; do sleep 10; done' || true
       - name: Exécuter le playbook Ansible
         run: |
           cd ansible
-          echo "=== Vérification de l'inventaire ==="
-          if [ -f inventory.json ]; then
-            cat inventory.json | jq '.'
-            echo "=== Hosts trouvés ==="
-            cat inventory.json | jq '.all.children.webservers.hosts | keys'
-          else
-            echo "ERREUR: inventory.json n'existe pas!"
-            exit 1
-          fi
-          echo "=== Exécution du playbook ==="
           ansible-playbook -i inventory.json Playbooks/Deploy_web.yml
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
