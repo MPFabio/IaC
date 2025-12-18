@@ -96,18 +96,33 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > ~/.ssh/ansible_key
           chmod 600 ~/.ssh/ansible_key
-          # Vérifier que la clé privée est valide
-          ssh-keygen -y -f ~/.ssh/ansible_key > /tmp/public_key_from_private.pub 2>&1 || echo "ERREUR: Clé privée invalide!"
-          echo "=== Clé publique extraite de la clé privée ==="
-          cat /tmp/public_key_from_private.pub || true
+          # Vérifier que la clé privée est valide et extraire la clé publique
+          echo "=== Vérification de la clé privée ==="
+          ssh-keygen -y -f ~/.ssh/ansible_key > /tmp/public_key_from_private.pub 2>&1
+          if [ $? -eq 0 ]; then
+            echo "✅ Clé privée valide"
+            echo "=== Clé publique extraite de la clé privée (sans commentaire) ==="
+            PUBLIC_KEY_FROM_PRIVATE=$(cat /tmp/public_key_from_private.pub | awk '{print $1" "$2}')
+            echo "$PUBLIC_KEY_FROM_PRIVATE"
+            echo ""
+            echo "⚠️  IMPORTANT: Cette clé publique doit correspondre EXACTEMENT à celle dans terraform.tfvars"
+            echo "   (sans le commentaire 'ansible' à la fin)"
+          else
+            echo "❌ ERREUR: Clé privée invalide!"
+            cat /tmp/public_key_from_private.pub
+            exit 1
+          fi
           # Ajouter les IPs aux known_hosts si disponibles
           if [ -f terraform_outputs.json ]; then
             FIRST_IP=$(jq -r '.vm_external_ips.value[0] // empty' terraform_outputs.json)
             if [ -n "$FIRST_IP" ] && [ "$FIRST_IP" != "null" ]; then
+              echo ""
+              echo "=== Test de connexion SSH ==="
+              echo "IP de la première VM: $FIRST_IP"
               echo "Ajout de $FIRST_IP aux known_hosts..."
               ssh-keyscan -H "$FIRST_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
-              echo "Test de connexion SSH à $FIRST_IP..."
-              ssh -i ~/.ssh/ansible_key -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ansible@$FIRST_IP "echo 'Connexion SSH réussie!'" || echo "⚠️  Connexion SSH échouée - vérifiez que la clé privée correspond à la clé publique dans terraform.tfvars"
+              echo "Tentative de connexion SSH..."
+              ssh -v -i ~/.ssh/ansible_key -o ConnectTimeout=15 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ansible@$FIRST_IP "echo 'Connexion SSH réussie!'" 2>&1 || echo "❌ Connexion SSH échouée"
             fi
           fi
       - name: Installer Python et Ansible
@@ -143,8 +158,8 @@ jobs:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
       - name: Attendre que les VMs soient prêtes
         run: |
-          echo "Attente de 120 secondes pour que les VMs soient complètement initialisées..."
-          sleep 120
+          # echo "Attente de 120 secondes pour que les VMs soient complètement initialisées..."
+          # sleep 120
           echo "Vérification de la connectivité SSH..."
           # Tenter une connexion SSH pour vérifier que les VMs sont prêtes
           FIRST_IP=$(jq -r '.vm_external_ips.value[0] // empty' terraform_outputs.json)
