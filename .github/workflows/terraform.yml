@@ -116,8 +116,15 @@ jobs:
       - name: Exécuter le playbook Ansible
         run: |
           cd ansible
-          export ANSIBLE_ROLES_PATH=$PWD/Roles
-          ansible-playbook -i inventory.json Playbooks/Deploy_web.yml -v
+          export ANSIBLE_CONFIG=$PWD/Ansible.cfg
+          export ANSIBLE_ROLES_PATH=${{ github.workspace }}/ansible/Roles
+          echo "=== Vérification des rôles ==="
+          ls -la Roles/Common/Tasks/
+          ls -la Roles/Webservers/Tasks/
+          echo "=== Liste des tâches ==="
+          ansible-playbook -i inventory.json Playbooks/Deploy_web.yml --list-tasks
+          echo "=== Exécution du playbook ==="
+          ansible-playbook -i inventory.json Playbooks/Deploy_web.yml
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
           ANSIBLE_HOST_KEY_CHECKING: "False"
