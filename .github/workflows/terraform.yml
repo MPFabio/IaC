@@ -112,10 +112,21 @@ jobs:
       - name: Exécuter le playbook Ansible
         run: |
           cd ansible
+          echo "=== Vérification de l'inventaire ==="
+          if [ -f inventory.json ]; then
+            cat inventory.json | jq '.'
+            echo "=== Hosts trouvés ==="
+            cat inventory.json | jq '.all.children.webservers.hosts | keys'
+          else
+            echo "ERREUR: inventory.json n'existe pas!"
+            exit 1
+          fi
+          echo "=== Exécution du playbook ==="
           ansible-playbook -i inventory.json Playbooks/Deploy_web.yml
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
           ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_ROLES_PATH: ${{ github.workspace }}/ansible/Roles
       - name: Exécuter les tests
         run: |
           cd ansible

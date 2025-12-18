@@ -48,18 +48,36 @@ def generate_inventory(outputs: Dict[str, Any], environment: str) -> Dict[str, A
         print("Erreur: Aucun output Terraform trouvé", file=sys.stderr)
         return inventory
 
+    print(f"DEBUG: Clés disponibles dans outputs: {list(outputs.keys())}", file=sys.stderr)
+
     # Extraire les valeurs des outputs Terraform
+    # Format attendu: {"vm_names": {"value": [...]}, "vm_external_ips": {"value": [...]}}
     vm_names_data = outputs.get("vm_names", {})
     vm_ips_data = outputs.get("vm_external_ips", {})
     
-    vm_names = vm_names_data.get("value", []) if isinstance(vm_names_data, dict) else []
-    vm_ips = vm_ips_data.get("value", []) if isinstance(vm_ips_data, dict) else []
+    # Gérer différents formats de sortie Terraform
+    if isinstance(vm_names_data, dict) and "value" in vm_names_data:
+        vm_names = vm_names_data["value"]
+    elif isinstance(vm_names_data, list):
+        vm_names = vm_names_data
+    else:
+        vm_names = []
+    
+    if isinstance(vm_ips_data, dict) and "value" in vm_ips_data:
+        vm_ips = vm_ips_data["value"]
+    elif isinstance(vm_ips_data, list):
+        vm_ips = vm_ips_data
+    else:
+        vm_ips = []
 
     # Debug: afficher ce qui a été trouvé
+    print(f"DEBUG: vm_names type={type(vm_names)}, valeur={vm_names}", file=sys.stderr)
+    print(f"DEBUG: vm_ips type={type(vm_ips)}, valeur={vm_ips}", file=sys.stderr)
+    
     if not vm_names:
-        print(f"Attention: vm_names est vide. Clés disponibles: {list(outputs.keys())}", file=sys.stderr)
+        print(f"Attention: vm_names est vide. Structure complète: {json.dumps(outputs, indent=2)}", file=sys.stderr)
     if not vm_ips:
-        print(f"Attention: vm_external_ips est vide. Clés disponibles: {list(outputs.keys())}", file=sys.stderr)
+        print(f"Attention: vm_external_ips est vide. Structure complète: {json.dumps(outputs, indent=2)}", file=sys.stderr)
 
     if not vm_names or not vm_ips:
         print("Erreur: Impossible de générer l'inventaire sans noms ou IPs de VMs", file=sys.stderr)
