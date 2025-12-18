@@ -115,22 +115,20 @@ jobs:
           [ -n "$FIRST_IP" ] && [ "$FIRST_IP" != "null" ] && timeout 30 bash -c 'until ssh -i ~/.ssh/ansible_key -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ansible@'"$FIRST_IP"' echo "OK" 2>/dev/null; do sleep 10; done' || true
       - name: Exécuter le playbook Ansible
         run: |
-          cd ansible
-          echo "=== Liste des tâches ==="
-          ansible-playbook -i inventory.json Playbooks/Deploy_web.yml --list-tasks
-          echo "=== Exécution du playbook ==="
-          ansible-playbook -i inventory.json Playbooks/Deploy_web.yml
+          cd ansible/Playbooks
+          ansible-playbook -i ../inventory.json Deploy_web.yml
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_ROLES_PATH: ${{ github.workspace }}/ansible/Roles
       - name: Exécuter les tests
         run: |
-          cd ansible
-          ansible-playbook -i inventory.json Playbooks/Tests/test_nginx.yml
+          cd ansible/Playbooks
+          ansible-playbook -i ../inventory.json Tests/test_nginx.yml
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
           ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_ROLES_PATH: ${{ github.workspace }}/ansible/Roles
 
   destroy:
     if: inputs.action == 'destroy'
