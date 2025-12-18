@@ -1,0 +1,104 @@
+name: Cleanup Resources
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environnement à nettoyer'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+
+env:
+  TF_VERSION: '1.14.0'
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Lister toutes les ressources
+        run: |
+          echo "=== Liste de toutes les VMs dans le projet ==="
+          gcloud compute instances list --project=iac-fmt --format="table(name,zone,status)" || echo "Aucune VM trouvée"
+          echo ""
+          echo "=== Liste de tous les VPCs dans le projet ==="
+          gcloud compute networks list --project=iac-fmt --format="table(name,autoCreateSubnetworks)" || echo "Aucun VPC trouvé"
+          echo ""
+          echo "=== Liste de tous les subnetworks dans le projet ==="
+          gcloud compute networks subnets list --project=iac-fmt --format="table(name,network,region)" || echo "Aucun subnetwork trouvé"
+          echo ""
+          echo "=== Liste de toutes les adresses IP dans le projet ==="
+          gcloud compute addresses list --project=iac-fmt --format="table(name,region,address)" || echo "Aucune IP trouvée"
+      - name: Supprimer les VMs
+        run: |
+          echo "=== Suppression des VMs ==="
+          VM_NAMES=$(gcloud compute instances list --project=iac-fmt --filter="name~vm-fmt-${{ inputs.environment }}" --format="get(name)" 2>/dev/null || echo "")
+          
+          if [ -n "$VM_NAMES" ]; then
+            for VM_NAME in $VM_NAMES; do
+              ZONE=$(gcloud compute instances describe "$VM_NAME" --project=iac-fmt --format="get(zone)" | awk -F'/' '{print $NF}')
+              echo "Suppression de la VM: $VM_NAME (zone: $ZONE)"
+              gcloud compute instances delete "$VM_NAME" --zone="$ZONE" --project=iac-fmt --quiet || echo "Erreur lors de la suppression de $VM_NAME"
+            done
+          else
+            echo "Aucune VM trouvée avec le filtre: name~vm-fmt-${{ inputs.environment }}"
+          fi
+      - name: Supprimer les adresses IP réservées
+        run: |
+          echo "=== Suppression des adresses IP réservées ==="
+          IP_NAMES=$(gcloud compute addresses list --project=iac-fmt --filter="name~vm-fmt-${{ inputs.environment }}" --format="get(name)" 2>/dev/null || echo "")
+          
+          if [ -n "$IP_NAMES" ]; then
+            for IP_NAME in $IP_NAMES; do
+              REGION=$(gcloud compute addresses describe "$IP_NAME" --project=iac-fmt --format="get(region)" 2>/dev/null || echo "europe-west9")
+              echo "Suppression de l'IP: $IP_NAME (région: $REGION)"
+              gcloud compute addresses delete "$IP_NAME" --region="$REGION" --project=iac-fmt --quiet || echo "Erreur lors de la suppression de $IP_NAME"
+            done
+          else
+            echo "Aucune adresse IP trouvée avec le filtre: name~vm-fmt-${{ inputs.environment }}"
+          fi
+      - name: Supprimer les subnetworks
+        run: |
+          echo "=== Suppression des subnetworks ==="
+          VPC_NAME="vpc-fmt-${{ inputs.environment }}"
+          SUBNETWORKS=$(gcloud compute networks subnets list --project=iac-fmt --filter="network~${VPC_NAME}" --format="get(name,region)" 2>/dev/null || echo "")
+          
+          if [ -n "$SUBNETWORKS" ]; then
+            echo "$SUBNETWORKS" | while IFS=$'\t' read -r SUBNET_NAME REGION; do
+              if [ -n "$SUBNET_NAME" ] && [ -n "$REGION" ]; then
+                echo "Suppression du subnetwork: $SUBNET_NAME dans la région $REGION"
+                gcloud compute networks subnets delete "$SUBNET_NAME" --region="$REGION" --project=iac-fmt --quiet || echo "Erreur lors de la suppression du subnetwork $SUBNET_NAME"
+              fi
+            done
+          else
+            echo "Aucun subnetwork trouvé pour le VPC $VPC_NAME"
+          fi
+      - name: Supprimer le VPC
+        run: |
+          echo "=== Suppression du VPC ==="
+          VPC_NAME="vpc-fmt-${{ inputs.environment }}"
+          VPC_EXISTS=$(gcloud compute networks describe "$VPC_NAME" --project=iac-fmt --format="get(name)" 2>/dev/null || echo "")
+          
+          if [ -n "$VPC_EXISTS" ] && [ "$VPC_EXISTS" = "$VPC_NAME" ]; then
+            echo "VPC trouvé: $VPC_NAME"
+            echo "Suppression du VPC: $VPC_NAME"
+            gcloud compute networks delete "$VPC_NAME" --project=iac-fmt --quiet || echo "Erreur lors de la suppression du VPC"
+          else
+            echo "VPC $VPC_NAME non trouvé (vérifié: $VPC_EXISTS)"
+          fi
+      - name: Vérification finale
+        run: |
+          echo "=== Vérification finale ==="
+          echo "VMs restantes:"
+          gcloud compute instances list --project=iac-fmt --filter="name~vm-fmt-${{ inputs.environment }}" --format="get(name)" || echo "Aucune"
+          echo "VPCs restants:"
+          gcloud compute networks list --project=iac-fmt --filter="name~vpc-fmt-${{ inputs.environment }}" --format="get(name)" || echo "Aucun"
+

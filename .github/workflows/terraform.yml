@@ -59,6 +59,25 @@ jobs:
         with:
           name: plan-${{ inputs.environment }}
       - run: terraform init -backend-config="bucket=storage-fmt" -backend-config="prefix=storage-fmt-${{ inputs.environment }}"
+      - name: Vérifier si les ressources existent déjà
+        run: |
+          echo "=== Vérification des ressources existantes ==="
+          VPC_NAME="vpc-fmt-${{ inputs.environment }}"
+          if gcloud compute networks describe "$VPC_NAME" --project=iac-fmt --format="get(name)" 2>/dev/null | grep -q "$VPC_NAME"; then
+            echo "⚠️  ATTENTION: Le VPC $VPC_NAME existe déjà dans GCP!"
+            echo "Le state Terraform est probablement vide ou introuvable."
+            echo ""
+            echo "Options:"
+            echo "1. Supprimer les ressources manuellement dans GCP"
+            echo "2. Importer les ressources existantes dans le state (nécessite un workflow séparé)"
+            echo ""
+            echo "Pour supprimer manuellement:"
+            echo "  gcloud compute instances delete vm-fmt-${{ inputs.environment }}-* --zone=europe-west9-a --project=iac-fmt"
+            echo "  gcloud compute networks delete $VPC_NAME --project=iac-fmt"
+            exit 1
+          else
+            echo "✅ Aucune ressource existante trouvée, on peut continuer"
+          fi
       - run: terraform apply -auto-approve plan
       - name: Récupérer les outputs Terraform
         run: terraform output -json > terraform_outputs.json
