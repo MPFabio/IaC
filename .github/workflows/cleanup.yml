@@ -65,31 +65,16 @@ jobs:
           else
             echo "Aucune adresse IP trouvée avec le filtre: name~vm-fmt-${{ inputs.environment }}"
           fi
-      - name: Supprimer les subnetworks
-        run: |
-          echo "=== Suppression des subnetworks ==="
-          VPC_NAME="vpc-fmt-${{ inputs.environment }}"
-          SUBNETWORKS=$(gcloud compute networks subnets list --project=iac-fmt --filter="network~${VPC_NAME}" --format="get(name,region)" 2>/dev/null || echo "")
-          
-          if [ -n "$SUBNETWORKS" ]; then
-            echo "$SUBNETWORKS" | while IFS=$'\t' read -r SUBNET_NAME REGION; do
-              if [ -n "$SUBNET_NAME" ] && [ -n "$REGION" ]; then
-                echo "Suppression du subnetwork: $SUBNET_NAME dans la région $REGION"
-                gcloud compute networks subnets delete "$SUBNET_NAME" --region="$REGION" --project=iac-fmt --quiet || echo "Erreur lors de la suppression du subnetwork $SUBNET_NAME"
-              fi
-            done
-          else
-            echo "Aucun subnetwork trouvé pour le VPC $VPC_NAME"
-          fi
-      - name: Supprimer le VPC
+      - name: Supprimer le VPC (supprime automatiquement les subnetworks auto-créés)
         run: |
           echo "=== Suppression du VPC ==="
+          echo "Note: Avec auto_create_subnetworks=true, les subnetworks sont supprimés automatiquement avec le VPC"
           VPC_NAME="vpc-fmt-${{ inputs.environment }}"
           VPC_EXISTS=$(gcloud compute networks describe "$VPC_NAME" --project=iac-fmt --format="get(name)" 2>/dev/null || echo "")
           
           if [ -n "$VPC_EXISTS" ] && [ "$VPC_EXISTS" = "$VPC_NAME" ]; then
             echo "VPC trouvé: $VPC_NAME"
-            echo "Suppression du VPC: $VPC_NAME"
+            echo "Suppression du VPC: $VPC_NAME (tous les subnetworks auto-créés seront supprimés automatiquement)"
             gcloud compute networks delete "$VPC_NAME" --project=iac-fmt --quiet || echo "Erreur lors de la suppression du VPC"
           else
             echo "VPC $VPC_NAME non trouvé (vérifié: $VPC_EXISTS)"
