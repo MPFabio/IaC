@@ -77,6 +77,20 @@ jobs:
         with:
           name: terraform-outputs-${{ inputs.environment }}
           path: .
+      - name: Vérifier que l'artifact est téléchargé
+        run: |
+          echo "=== Fichiers dans le répertoire ==="
+          ls -la
+          echo "=== Vérification de terraform_outputs.json ==="
+          if [ -f terraform_outputs.json ]; then
+            echo "Fichier existe"
+            echo "Taille: $(wc -c < terraform_outputs.json) bytes"
+            echo "Premières lignes:"
+            head -20 terraform_outputs.json
+          else
+            echo "ERREUR: terraform_outputs.json n'existe pas!"
+            exit 1
+          fi
       - name: Configurer la clé SSH
         run: |
           mkdir -p ~/.ssh
