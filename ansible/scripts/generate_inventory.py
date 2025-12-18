@@ -43,10 +43,30 @@ def generate_inventory(outputs: Dict[str, Any], environment: str) -> Dict[str, A
         }
     }
 
-    vm_names = outputs.get("vm_names", {}).get("value", [])
-    vm_ips = outputs.get("vm_external_ips", {}).get("value", [])
+    # Debug: afficher les clés disponibles dans outputs
+    if not outputs:
+        print("Erreur: Aucun output Terraform trouvé", file=sys.stderr)
+        return inventory
+
+    # Extraire les valeurs des outputs Terraform
+    vm_names_data = outputs.get("vm_names", {})
+    vm_ips_data = outputs.get("vm_external_ips", {})
+    
+    vm_names = vm_names_data.get("value", []) if isinstance(vm_names_data, dict) else []
+    vm_ips = vm_ips_data.get("value", []) if isinstance(vm_ips_data, dict) else []
+
+    # Debug: afficher ce qui a été trouvé
+    if not vm_names:
+        print(f"Attention: vm_names est vide. Clés disponibles: {list(outputs.keys())}", file=sys.stderr)
+    if not vm_ips:
+        print(f"Attention: vm_external_ips est vide. Clés disponibles: {list(outputs.keys())}", file=sys.stderr)
 
     if not vm_names or not vm_ips:
+        print("Erreur: Impossible de générer l'inventaire sans noms ou IPs de VMs", file=sys.stderr)
+        return inventory
+
+    if len(vm_names) != len(vm_ips):
+        print(f"Erreur: Nombre de VMs ({len(vm_names)}) ne correspond pas au nombre d'IPs ({len(vm_ips)})", file=sys.stderr)
         return inventory
 
     hosts = {}
@@ -59,6 +79,7 @@ def generate_inventory(outputs: Dict[str, Any], environment: str) -> Dict[str, A
         }
 
     inventory["all"]["children"]["webservers"]["hosts"] = hosts
+    print(f"Inventaire généré avec {len(hosts)} host(s)", file=sys.stderr)
 
     return inventory
 

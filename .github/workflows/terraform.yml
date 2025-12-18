@@ -88,14 +88,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3 python3-pip
           pip3 install ansible
+      - name: Vérifier les outputs Terraform
+        run: |
+          cat terraform_outputs.json | jq 'keys'
       - name: Générer l'inventaire dynamique
         run: |
           cd ansible
           python3 scripts/generate_inventory.py ../terraform_outputs.json ${{ inputs.environment }} > inventory.json
+          echo "Inventaire généré:"
+          cat inventory.json | jq '.all.children.webservers.hosts | keys'
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
       - name: Attendre que les VMs soient prêtes
         run: sleep 60
+      - name: Vérifier la configuration Ansible
+        run: |
+          cd ansible
+          ansible-config dump | grep roles_path
+          ls -la Roles/
       - name: Exécuter le playbook Ansible
         run: |
           cd ansible

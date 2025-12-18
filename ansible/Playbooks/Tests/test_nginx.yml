@@ -15,3 +15,5 @@
           - nginx_status.status.ActiveState == "active"
         fail_msg: "nginx n'est pas actif"
 
+
+
