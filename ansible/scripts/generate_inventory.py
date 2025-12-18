@@ -38,7 +38,7 @@ def generate_inventory(outputs: Dict[str, Any], environment: str) -> Dict[str, A
                 }
             },
             "vars": {
-                "environment": environment
+                "env": environment
             }
         }
     }
