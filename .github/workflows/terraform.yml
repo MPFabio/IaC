@@ -116,12 +116,10 @@ jobs:
       - name: Exécuter le playbook Ansible
         run: |
           cd ansible
-          ansible-playbook -i inventory.json -e "ansible_python_interpreter=/usr/bin/python3" Playbooks/Deploy_web.yml
+          ansible-playbook -i inventory.json --roles-path=${{ github.workspace }}/ansible/Roles Playbooks/Deploy_web.yml
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
           ANSIBLE_HOST_KEY_CHECKING: "False"
-          ANSIBLE_ROLES_PATH: ${{ github.workspace }}/ansible/Roles
-          ANSIBLE_CONFIG: ${{ github.workspace }}/ansible/Ansible.cfg
       - name: Exécuter les tests
         run: |
           cd ansible
