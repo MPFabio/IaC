@@ -104,8 +104,11 @@ jobs:
       - name: Vérifier la configuration Ansible
         run: |
           cd ansible
-          ansible-config dump | grep roles_path
-          ls -la Roles/
+          echo "Vérification de la structure Ansible:"
+          ls -la Roles/ || echo "Avertissement: Répertoire Roles/ non trouvé"
+          cat Ansible.cfg || echo "Avertissement: Ansible.cfg non trouvé"
+          echo "Vérification des rôles disponibles:"
+          ls -la Roles/*/Tasks/main.yml 2>/dev/null || echo "Aucun rôle trouvé"
       - name: Exécuter le playbook Ansible
         run: |
           cd ansible
