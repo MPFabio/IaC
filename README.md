@@ -227,6 +227,60 @@ Les IPs sont affichées dans les outputs Terraform et dans les logs du pipeline 
 - Les VMs utilisent le type `e2-micro` (gratuit dans la free tier GCP)
 - Les IPs sont statiques pour éviter les changements à chaque recréation
 
-## Contribution
+## Concepts clés
 
-N'hésitez pas à ouvrir une issue ou une pull request pour améliorer ce projet !
+### Terraform
+
+**T1. À quoi sert le fichier terraform.tfstate ?**
+
+Le fichier tfstate est la source de vérité pour Terraform, il contient l'état de notre infrastructure. Dans les bonnes pratiques, celui-ci doit être stocké dans un bucket/S3/blob et renseigné dans notre backend.tf afin que Terraform puisse l'interroger si utilisé via pipeline.
+
+**T2. Quelle est la différence entre terraform plan et terraform apply ?**
+
+terraform plan nous indique les modifications qui seront appliquées à notre infrastructure lors de terraform apply via un comparatif entre l'existant et ce qui sera créé/supprimé. C'est une prévisualisation, aucune modification n'est appliquée.
+
+**T3. Pourquoi utiliser des variables dans Terraform ?**
+
+Les variables dans Terraform permettent une modification facile de la valeur (changement uniquement de la variable et pas de chaque ressource). Elles permettent aussi, au besoin, de ne pas inscrire les valeurs en dur dans le code et de réutiliser le code pour différents environnements (dev/prod).
+
+**T4. Que se passe-t-il si une ressource créée par Terraform est supprimée manuellement ?**
+
+Si la ressource est supprimée manuellement, il y aura un drift (décalage entre l'état Terraform et la réalité). Terraform prendra en considération ce que mon code souhaite, mon tfstate et le mettra en parallèle avec les ressources que je possède réellement dans le cloud. Dans ce cas précis, il créera de nouveau la ressource qui a été supprimée manuellement pour rétablir la cohérence.
+
+### Ansible
+
+**A1. Qu'est-ce que l'idempotence en Ansible ?**
+
+L'idempotence dans Ansible indique que le résultat restera toujours le même peu importe le nombre d'itérations, c'est-à-dire qu'exécuter une tâche plusieurs fois produit le même résultat final qu'une seule exécution, ce qui permet de relancer un playbook sans risque d'effets de bord.
+
+**A2. À quoi sert un handler ?**
+
+Un handler est une tâche qui se joue uniquement si celle-ci est appelée par un notify. Il s'exécute une seule fois à la fin du playbook, même s'il est notifié plusieurs fois.
+
+**A3. Quelle est la différence entre un inventory statique et dynamique ?**
+
+Un inventaire statique doit être renseigné au préalable à la main et ne bouge pas tant qu'on ne le modifie pas. L'inventaire dynamique est rempli dynamiquement, via un pipeline par exemple qui récupère des outputs Terraform.
+
+**A4. Quelle commande permet de tester un playbook sans appliquer de changements ?**
+
+ansible-playbook foo.yml --check
+
+### Terraform + Ansible
+
+**1. Expliquer comment récupérer l'adresse IP de la VM créée par Terraform pour l'utiliser dans Ansible**
+
+Terraform exporte les IPs publiques des VMs via l'output, le pipeline sauvegarde en JSON puis un script Python lit ce JSON et génère l'inventaire Ansible.
+
+**2. Expliquer pourquoi Ansible doit être exécuté après Terraform**
+
+Ansible doit être exécuté après Terraform parce que l'infrastructure doit être créée/à jour avant d'être configurée.
+
+**I1. Pourquoi est-il déconseillé d'exécuter Ansible avant Terraform ?**
+
+Exécuter Ansible avant Terraform est impossible car les ressources n'existent pas encore, Ansible ne peut donc pas se connecter à des machines qui n'ont pas été provisionnées.
+
+**I2. Donner un avantage et un inconvénient de l'approche Terraform + Ansible**
+
+**Avantage** : Permet dans un pipeline de provisionner notre infrastructure et de la configurer dynamiquement.
+
+**Inconvénient** : Plus de compléxité avec deux outils à maintenir et syncrho, dépendance entre les outils (si Terraform échoue, Ansible ne peut pas s'exécuter)
