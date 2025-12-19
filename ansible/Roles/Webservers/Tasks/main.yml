@@ -5,21 +5,6 @@
     state: present
     update_cache: yes
   become: yes
-  register: nginx_install
-
-- name: Afficher le résultat de l'installation
-  debug:
-    msg: "Nginx installé: {{ 'Oui' if nginx_install.changed or nginx_install.changed == false else 'Non' }}"
-
-- name: Vérifier que nginx est installé
-  command: which nginx
-  register: nginx_path
-  failed_when: false
-  changed_when: false
-
-- name: Afficher le chemin de nginx
-  debug:
-    msg: "Chemin nginx: {{ nginx_path.stdout | default('non trouvé') }}"
 
 - name: Déployer la configuration nginx
   template:
@@ -28,34 +13,9 @@
   become: yes
   notify: restart nginx
 
-- name: Vérifier la syntaxe de la configuration nginx
-  command: nginx -t
-  register: nginx_test
-  failed_when: nginx_test.rc != 0
-  changed_when: false
-  become: yes
-
 - name: Démarrer et activer nginx
   systemd:
     name: nginx
     enabled: yes
     state: started
   become: yes
-  register: nginx_start_result
-
-- name: Afficher le résultat du démarrage
-  debug:
-    var: nginx_start_result
-
-- name: Vérifier que nginx est démarré
-  systemd:
-    name: nginx
-  register: nginx_final_status
-  failed_when: false
-
-- name: Afficher le statut détaillé de nginx
-  debug:
-    msg: |
-      État de nginx: {{ nginx_final_status.status.ActiveState | default('inconnu') }}
-      Sous-état: {{ nginx_final_status.status.SubState | default('inconnu') }}
-      Activé au démarrage: {{ nginx_final_status.status.UnitFileState | default('inconnu') }}

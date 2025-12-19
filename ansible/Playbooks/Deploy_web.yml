@@ -3,32 +3,6 @@
   hosts: webservers
   become: yes
 
-  pre_tasks:
-    - name: Afficher les informations de l'hôte
-      debug:
-        msg: "Exécution sur {{ inventory_hostname }} ({{ ansible_host }})"
-
   roles:
     - Common
     - Webservers
-
-  post_tasks:
-    - name: Vérifier que nginx est installé
-      command: which nginx
-      register: nginx_check
-      failed_when: false
-      changed_when: false
-
-    - name: Afficher le résultat de la vérification nginx
-      debug:
-        msg: "Nginx trouvé: {{ 'Oui' if nginx_check.rc == 0 else 'Non' }} - {{ nginx_check.stdout | default('non trouvé') }}"
-
-    - name: Vérifier le statut de nginx
-      systemd:
-        name: nginx
-      register: nginx_status_check
-      failed_when: false
-
-    - name: Afficher le statut de nginx
-      debug:
-        msg: "État de nginx: {{ nginx_status_check.status.ActiveState | default('inconnu') }}"
