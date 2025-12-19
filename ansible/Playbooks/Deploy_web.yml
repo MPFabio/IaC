@@ -3,6 +3,10 @@
   hosts: webservers
   become: yes
 
+  vars:
+    nginx_port: 80
+    nginx_server_name: "{{ ansible_hostname }}"
+
   tasks:
     - name: Mettre à jour le cache des paquets
       apt:
