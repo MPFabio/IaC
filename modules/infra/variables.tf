@@ -1,5 +1,4 @@
-# Variables du module infra
-# Ces variables sont passées depuis le fichier main.tf à la racine
+# Variables d'entrée du module infra
 
 variable "project_id" {
   type        = string

@@ -1,13 +1,16 @@
-# Création du VPC (réseau virtuel)
-# auto_create_subnetworks = true signifie que GCP crée automatiquement un subnet dans chaque région
+# Création du réseau virtuel (VPC) dans GCP
+# auto_create_subnetworks = true active le mode "auto mode" qui crée automatiquement
+# un subnet dans chaque région de GCP, simplifiant la gestion réseau
 resource "google_compute_network" "vpc" {
   name                    = "vpc-fmt-${var.environment}"
   project                 = var.project_id
   auto_create_subnetworks = true
 }
 
-# Règle de firewall pour autoriser SSH (port 22) depuis n'importe où
-# Les VMs avec le tag "ssh-allowed" pourront recevoir du trafic SSH
+# Règle de firewall ingress autorisant le trafic SSH (TCP port 22)
+# Appliquée uniquement aux instances portant le tag "ssh-allowed"
+# source_ranges = ["0.0.0.0/0"] autorise les connexions depuis n'importe quelle IP
+# ATTENTION: En production, restreindre source_ranges à des IPs spécifiques
 resource "google_compute_firewall" "allow_ssh" {
   name    = "allow-ssh-${var.environment}"
   network = google_compute_network.vpc.name
@@ -18,16 +21,15 @@ resource "google_compute_firewall" "allow_ssh" {
     ports    = ["22"]
   }
 
-  # 0.0.0.0/0 = depuis n'importe quelle IP (pas très sécurisé mais pratique pour le dev)
   source_ranges = ["0.0.0.0/0"]
-  # Seules les VMs avec ce tag sont concernées par cette règle
   target_tags   = ["ssh-allowed"]
 
   description = "Autorise les connexions SSH depuis n'importe où"
 }
 
-# Règle de firewall pour autoriser HTTP (port 80) depuis n'importe où
-# Permet d'accéder à Nginx depuis internet
+# Règle de firewall ingress autorisant le trafic HTTP (TCP port 80)
+# Nécessaire pour exposer les services web (Nginx) sur internet
+# Appliquée aux instances portant le tag "http-allowed"
 resource "google_compute_firewall" "allow_http" {
   name    = "allow-http-${var.environment}"
   network = google_compute_network.vpc.name
@@ -44,16 +46,16 @@ resource "google_compute_firewall" "allow_http" {
   description = "Autorise les connexions HTTP depuis n'importe où"
 }
 
-# On crée 2 VMs par défaut
-# Si on veut utiliser var.vm_ips pour définir le nombre, on peut décommenter la ligne alternative
+# Variable locale définissant le nombre d'instances à créer
+# Actuellement fixé à 2 instances. Pour une configuration dynamique basée sur
+# var.vm_ips, utiliser: vm_count = length(var.vm_ips) > 0 ? length(var.vm_ips) : 2
 locals {
   vm_count = 2
-  # Version avec vm_ips :
-  # vm_count = length(var.vm_ips) > 0 ? length(var.vm_ips) : 2
 }
 
-# Création des adresses IP statiques pour chaque VM
-# Une IP statique reste la même même si la VM est recréée
+# Provisionnement d'adresses IP publiques statiques pour chaque instance
+# Les IPs statiques persistent même après la destruction des instances,
+# permettant la réutilisation et la stabilité des configurations DNS
 resource "google_compute_address" "vm_ip" {
   count   = local.vm_count
   name    = "vm-fmt-${var.environment}-ip-${count.index + 1}"
@@ -61,55 +63,57 @@ resource "google_compute_address" "vm_ip" {
   region  = var.region
 }
 
-# Création des instances VM
+# Création des instances Compute Engine
 resource "google_compute_instance" "vm" {
   count        = local.vm_count
   name         = "vm-fmt-${var.environment}-${count.index + 1}"
   project      = var.project_id
-  machine_type = "e2-micro"  # Machine type gratuite (ou presque) sur GCP
+  machine_type = "e2-micro"  # Machine type éligible au free tier GCP (limites applicables)
   zone         = var.zone
   
-  # Tags pour que les règles de firewall s'appliquent
+  # Tags réseau permettant l'application sélective des règles de firewall
   tags = ["ssh-allowed", "http-allowed"]
   
-  # Métadonnées : on injecte la clé publique SSH
-  # Cela crée automatiquement l'utilisateur "ansible" avec cette clé
+  # Injection de la clé publique SSH dans les métadonnées de l'instance
+  # Crée automatiquement l'utilisateur "ansible" avec cette clé autorisée
+  # Format GCP: "username:ssh-key-type key-data comment"
   metadata = {
-    # Format requis par GCP: username:ssh-rsa KEY comment
     ssh-keys = "ansible:${trimspace(var.ssh_public_key)}"
   }
 
-  # Disque boot avec Debian 12
+  # Configuration du disque de boot
   boot_disk {
     initialize_params {
-      image = "debian-cloud/debian-12"
-      size  = 20  # 20 Go
-      type  = "pd-balanced"  # Type de disque équilibré
+      image = "debian-cloud/debian-12"  # Image Debian 12 (Bookworm)
+      size  = 20                         # Taille du disque en GB
+      type  = "pd-balanced"              # Type de disque: balanced performance/cost
     }
   }
 
-  # Configuration réseau : on attache la VM au VPC
+  # Configuration de l'interface réseau
   network_interface {
     network = google_compute_network.vpc.id
 
-    # Configuration d'accès externe (IP publique)
+    # Configuration NAT pour l'accès externe (IP publique)
     access_config {
-      # On utilise l'IP statique qu'on a créée juste avant
+      # Attribution de l'adresse IP statique préalablement créée
       nat_ip = google_compute_address.vm_ip[count.index].address
-      
-      # Si on voulait utiliser des IPs définies manuellement dans var.vm_ips :
-      # nat_ip = length(var.vm_ips) > 0 ? var.vm_ips[count.index] : google_compute_address.vm_ip[count.index].address
     }
   }
 
-  # Options de sécurité : Secure Boot, vTPM, monitoring d'intégrité
+  # Configuration des fonctionnalités de sécurité avancées
+  # Secure Boot: vérification de l'intégrité du firmware au démarrage
+  # vTPM: module de plateforme de confiance virtuel pour le chiffrement
+  # Integrity Monitoring: surveillance de l'intégrité du système
   shielded_instance_config {
     enable_secure_boot          = true
     enable_vtpm                 = true
     enable_integrity_monitoring = true
   }
 
-  # Planification : redémarrage automatique et migration lors de la maintenance
+  # Configuration de la planification et de la disponibilité
+  # automatic_restart: redémarrage automatique en cas de panne
+  # on_host_maintenance: migration live de la VM lors de la maintenance de l'hôte
   scheduling {
     automatic_restart   = true
     on_host_maintenance = "MIGRATE"
