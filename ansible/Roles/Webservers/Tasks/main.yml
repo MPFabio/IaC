@@ -13,6 +13,13 @@
   become: yes
   notify: restart nginx
 
+- name: Déployer la page d'accueil stylée
+  template:
+    src: index.html.j2
+    dest: /usr/share/nginx/html/index.html
+    mode: '0644'
+  become: yes
+
 - name: Démarrer et activer nginx
   systemd:
     name: nginx
