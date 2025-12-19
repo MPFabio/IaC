@@ -4,31 +4,21 @@
   become: yes
 
   tasks:
-    - name: Vérifier si nginx est installé
-      command: which nginx
-      register: nginx_installed
-      failed_when: false
-      changed_when: false
-
-    - name: Afficher si nginx est installé
-      debug:
-        msg: "Nginx installé: {{ 'Oui' if nginx_installed.rc == 0 else 'Non' }}"
-
-    - name: Vérifier que nginx est actif
+    - name: Vérifier que nginx est installé et actif
       systemd:
         name: nginx
       register: nginx_status
       failed_when: false
 
-    - name: Afficher le statut détaillé
+    - name: Afficher le statut
       debug:
-        var: nginx_status.status
+        msg: "Nginx: {{ 'Actif' if nginx_status.status.ActiveState == 'active' else 'Inactif' }}"
 
     - name: Vérifier que nginx est actif
       assert:
         that:
           - nginx_status.status.ActiveState == "active"
-        fail_msg: "nginx n'est pas actif. État actuel: {{ nginx_status.status.ActiveState | default('service non trouvé') }}"
+        fail_msg: "nginx n'est pas actif. État: {{ nginx_status.status.ActiveState | default('service non trouvé') }}"
 
 
 

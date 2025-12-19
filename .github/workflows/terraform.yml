@@ -90,11 +90,7 @@ jobs:
           path: .
       - name: Afficher les IPs des VMs
         run: |
-          echo "=== IPs des VMs ==="
-          jq -r '.vm_external_ips.value[] // empty' terraform_outputs.json | while read ip; do
-            [ -n "$ip" ] && [ "$ip" != "null" ] && echo "  - $ip" || true
-          done
-          echo "==================="
+          echo "IPs des VMs: $(jq -r '.vm_external_ips.value[] // empty' terraform_outputs.json | grep -v '^$' | tr '\n' ' ')"
       - name: Configurer la clé SSH
         run: |
           mkdir -p ~/.ssh
@@ -127,15 +123,6 @@ jobs:
           export ANSIBLE_CONFIG=$PWD/Ansible.cfg
           export ANSIBLE_ROLES_PATH=${{ github.workspace }}/ansible/Roles
           ansible-playbook -i inventory.json Playbooks/Deploy_web.yml
-        env:
-          ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-      - name: Vérifier que Nginx est actif après déploiement
-        run: |
-          cd ansible
-          export ANSIBLE_CONFIG=$PWD/Ansible.cfg
-          export ANSIBLE_ROLES_PATH=${{ github.workspace }}/ansible/Roles
-          ansible webservers -i inventory.json -m systemd -a "name=nginx" --become | grep -E "(ActiveState|SubState)" || true
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
           ANSIBLE_HOST_KEY_CHECKING: "False"

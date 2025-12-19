@@ -21,6 +21,23 @@ resource "google_compute_firewall" "allow_ssh" {
   description = "Autorise les connexions SSH depuis n'importe où"
 }
 
+# Règle de firewall pour autoriser HTTP depuis n'importe où
+resource "google_compute_firewall" "allow_http" {
+  name    = "allow-http-${var.environment}"
+  network = google_compute_network.vpc.name
+  project = var.project_id
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["http-allowed"]
+
+  description = "Autorise les connexions HTTP depuis n'importe où"
+}
+
 # Créer 2 VMs par défaut
 locals {
   vm_count = 2
@@ -42,7 +59,7 @@ resource "google_compute_instance" "vm" {
   machine_type = "e2-micro"
   zone         = var.zone
   
-  tags = ["ssh-allowed"]
+  tags = ["ssh-allowed", "http-allowed"]
   
   metadata = {
     # Format: username:ssh-rsa KEY comment
