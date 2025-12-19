@@ -9,8 +9,8 @@
         msg: "Exécution sur {{ inventory_hostname }} ({{ ansible_host }})"
 
   roles:
-    - role: Common
-    - role: Webservers
+    - Common
+    - Webservers
 
   post_tasks:
     - name: Vérifier que nginx est installé

@@ -124,6 +124,8 @@ jobs:
           ls -la Roles/Webservers/Tasks/ || echo "ERREUR: Webservers/Tasks non trouvé"
           echo "=== Vérification de ANSIBLE_ROLES_PATH ==="
           echo "ANSIBLE_ROLES_PATH=$ANSIBLE_ROLES_PATH"
+          echo "=== Vérification que Ansible trouve les rôles ==="
+          ansible-galaxy list || true
           echo "=== Liste des tâches ==="
           ansible-playbook -i inventory.json Playbooks/Deploy_web.yml --list-tasks || echo "ERREUR: Impossible de lister les tâches"
           echo "=== Exécution du playbook ==="
