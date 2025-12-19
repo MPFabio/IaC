@@ -11,3 +11,4 @@ nginx_server_name: "{{ ansible_hostname }}"
 
 
 
+

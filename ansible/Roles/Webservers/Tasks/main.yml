@@ -6,111 +6,12 @@
     update_cache: yes
   become: yes
 
-- name: Vérifier que nginx est installé
-  command: which nginx
-  register: nginx_which
-  changed_when: false
-  failed_when: nginx_which.rc != 0
-  become: yes
-
-- name: Recharger systemd pour détecter les nouveaux services
-  systemd:
-    daemon_reload: yes
-  become: yes
-
-- name: Vérifier que le service nginx existe
-  command: systemctl list-unit-files | grep nginx
-  register: nginx_service_check
-  changed_when: false
-  failed_when: false
-  become: yes
-
-- name: Vérifier l'existence du fichier de service systemd
-  stat:
-    path: /lib/systemd/system/nginx.service
-  register: nginx_service_file
-  become: yes
-
-- name: Afficher les informations de diagnostic
-  debug:
-    msg:
-      - "Services nginx trouvés: {{ nginx_service_check.stdout | default('aucun') }}"
-      - "Fichier de service existe: {{ nginx_service_file.stat.exists | default(false) }}"
-      - "Chemin nginx: {{ nginx_which.stdout }}"
-
-- name: Vérifier le statut du service nginx avant démarrage
-  systemd:
-    name: nginx
-  register: nginx_status_before
-  failed_when: false
-  become: yes
-
-- name: Afficher le statut avant démarrage
-  debug:
-    msg: "État nginx avant démarrage: {{ nginx_status_before.status.ActiveState | default('non trouvé') }}"
-
-- name: Démarrer et activer nginx (configuration par défaut)
-  systemd:
-    name: nginx
-    enabled: yes
-    state: started
-    daemon_reload: yes
-  become: yes
-
-- name: Vérifier que nginx est démarré après installation
-  systemd:
-    name: nginx
-  register: nginx_status_after_install
-  become: yes
-
-- name: Afficher le statut après démarrage
-  debug:
-    msg: "État nginx après démarrage: {{ nginx_status_after_install.status.ActiveState | default('non trouvé') }}, LoadState: {{ nginx_status_after_install.status.LoadState | default('non trouvé') }}"
-
-- name: Vérifier que nginx est actif après installation
-  assert:
-    that:
-      - nginx_status_after_install.status.ActiveState == "active"
-    fail_msg: "nginx n'est pas actif après installation. État: {{ nginx_status_after_install.status.ActiveState | default('non trouvé') }}, LoadState: {{ nginx_status_after_install.status.LoadState | default('non trouvé') }}"
-  failed_when: false
-  register: nginx_check_result
-
-- name: Créer le service systemd si nécessaire
-  copy:
-    content: |
-      [Unit]
-      Description=The nginx HTTP and reverse proxy server
-      After=network.target remote-fs.target nss-lookup.target
-
-      [Service]
-      Type=forking
-      PIDFile=/run/nginx.pid
-      ExecStartPre=/usr/sbin/nginx -t
-      ExecStart=/usr/sbin/nginx
-      ExecReload=/bin/kill -s HUP $MAINPID
-      ExecStop=/bin/kill -s QUIT $MAINPID
-      PrivateTmp=true
-
-      [Install]
-      WantedBy=multi-user.target
-    dest: /etc/systemd/system/nginx.service
-    mode: '0644'
-  become: yes
-  when: nginx_status_after_install.status.LoadState == "not-found" or nginx_check_result.failed
-
-- name: Recharger systemd après création du service
-  systemd:
-    daemon_reload: yes
-  become: yes
-  when: nginx_status_after_install.status.LoadState == "not-found" or nginx_check_result.failed
-
-- name: Démarrer nginx après création du service
+- name: Démarrer et activer nginx avec la configuration par défaut
   systemd:
     name: nginx
     enabled: yes
     state: started
   become: yes
-  when: nginx_status_after_install.status.LoadState == "not-found" or nginx_check_result.failed
 
 - name: Déployer la configuration nginx
   template:
@@ -151,33 +52,3 @@
     timeout: 10
   become: no
   ignore_errors: yes
-
-- name: Vérifier le statut final de nginx
-  systemd:
-    name: nginx
-  register: nginx_final_status
-  become: yes
-
-- name: Afficher le statut de nginx
-  debug:
-    msg: "État nginx: {{ nginx_final_status.status.ActiveState }}, Sous-état: {{ nginx_final_status.status.SubState }}"
-
-- name: Afficher les logs nginx en cas d'erreur
-  command: journalctl -u nginx -n 20 --no-pager
-  register: nginx_logs
-  changed_when: false
-  failed_when: false
-  become: yes
-  when: nginx_final_status.status.ActiveState != "active"
-
-- name: Afficher les logs si nginx n'est pas actif
-  debug:
-    var: nginx_logs.stdout_lines
-  when: nginx_final_status.status.ActiveState != "active"
-
-- name: S'assurer que nginx est actif
-  systemd:
-    name: nginx
-    state: started
-  become: yes
-  failed_when: false
