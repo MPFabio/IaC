@@ -6,18 +6,72 @@
     update_cache: yes
   become: yes
 
+- name: Vérifier que nginx est installé
+  command: which nginx
+  register: nginx_which
+  changed_when: false
+  failed_when: nginx_which.rc != 0
+  become: yes
+
+- name: Recharger systemd pour détecter les nouveaux services
+  systemd:
+    daemon_reload: yes
+  become: yes
+
+- name: Vérifier que le service nginx existe
+  command: systemctl list-unit-files | grep nginx
+  register: nginx_service_check
+  changed_when: false
+  failed_when: false
+  become: yes
+
+- name: Vérifier l'existence du fichier de service systemd
+  stat:
+    path: /lib/systemd/system/nginx.service
+  register: nginx_service_file
+  become: yes
+
+- name: Afficher les informations de diagnostic
+  debug:
+    msg:
+      - "Services nginx trouvés: {{ nginx_service_check.stdout | default('aucun') }}"
+      - "Fichier de service existe: {{ nginx_service_file.stat.exists | default(false) }}"
+      - "Chemin nginx: {{ nginx_which.stdout }}"
+
+- name: Vérifier le statut du service nginx avant démarrage
+  systemd:
+    name: nginx
+  register: nginx_status_before
+  failed_when: false
+  become: yes
+
+- name: Afficher le statut avant démarrage
+  debug:
+    msg: "État nginx avant démarrage: {{ nginx_status_before.status.ActiveState | default('non trouvé') }}"
+
 - name: Démarrer et activer nginx (configuration par défaut)
   systemd:
     name: nginx
     enabled: yes
     state: started
+    daemon_reload: yes
   become: yes
 
 - name: Vérifier que nginx est démarré après installation
   systemd:
     name: nginx
   register: nginx_status_after_install
-  failed_when: nginx_status_after_install.status.ActiveState != "active"
+  become: yes
+
+- name: Afficher le statut après démarrage
+  debug:
+    msg: "État nginx après démarrage: {{ nginx_status_after_install.status.ActiveState | default('non trouvé') }}, LoadState: {{ nginx_status_after_install.status.LoadState | default('non trouvé') }}"
+
+- name: Vérifier que nginx est actif
+  assert:
+    that:
+      - nginx_status_after_install.status.ActiveState == "active"
+    fail_msg: "nginx n'est pas actif après installation. État: {{ nginx_status_after_install.status.ActiveState | default('non trouvé') }}, LoadState: {{ nginx_status_after_install.status.LoadState | default('non trouvé') }}"
 
 - name: Déployer la configuration nginx
   template:
