@@ -13,11 +13,48 @@
     state: started
   become: yes
 
+- name: Vérifier que nginx est démarré après installation
+  systemd:
+    name: nginx
+  register: nginx_status_initial
+  become: yes
+
+- name: Afficher le statut initial de nginx
+  debug:
+    msg: "État nginx après installation: {{ nginx_status_initial.status.ActiveState | default('non trouvé') }}, LoadState: {{ nginx_status_initial.status.LoadState | default('non trouvé') }}"
+
+- name: Afficher les logs nginx si le service n'existe pas
+  command: journalctl -u nginx -n 10 --no-pager || echo "Service non trouvé"
+  register: nginx_logs_initial
+  changed_when: false
+  failed_when: false
+  become: yes
+  when: nginx_status_initial.status.LoadState == "not-found"
+
+- name: Afficher les logs
+  debug:
+    var: nginx_logs_initial.stdout_lines
+  when: nginx_status_initial.status.LoadState == "not-found"
+
+- name: S'assurer que le site par défaut est activé
+  file:
+    src: /etc/nginx/sites-available/default
+    dest: /etc/nginx/sites-enabled/default
+    state: link
+  become: yes
+
 - name: Déployer la configuration nginx
   template:
     src: default.conf.j2
     dest: /etc/nginx/sites-available/default
     backup: yes
+  become: yes
+
+- name: S'assurer que le site reste activé après déploiement
+  file:
+    src: /etc/nginx/sites-available/default
+    dest: /etc/nginx/sites-enabled/default
+    state: link
   become: yes
 
 - name: Vérifier la configuration nginx avant redémarrage
@@ -36,6 +73,23 @@
     name: nginx
     state: restarted
   become: yes
+
+- name: Vérifier que nginx est actif après redémarrage
+  systemd:
+    name: nginx
+  register: nginx_status_after_restart
+  become: yes
+
+- name: Afficher le statut de nginx
+  debug:
+    msg: "État nginx après redémarrage: {{ nginx_status_after_restart.status.ActiveState | default('non trouvé') }}"
+
+- name: S'assurer que nginx est démarré
+  systemd:
+    name: nginx
+    state: started
+  become: yes
+  when: nginx_status_after_restart.status.ActiveState != "active"
 
 - name: Déployer la page d'accueil stylée
   template:

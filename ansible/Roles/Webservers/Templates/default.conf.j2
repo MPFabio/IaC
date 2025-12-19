@@ -1,10 +1,13 @@
 server {
-    listen {{ nginx_port }};
+    listen {{ nginx_port }} default_server;
+    listen [::]:{{ nginx_port }} default_server;
     server_name {{ nginx_server_name }};
 
+    root /usr/share/nginx/html;
+    index index.html;
+
     location / {
-        root /usr/share/nginx/html;
-        index index.html;
+        try_files $uri $uri/ =404;
     }
 }
 
