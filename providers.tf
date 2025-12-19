@@ -1,6 +1,9 @@
+# Configuration des versions et providers Terraform
 terraform {
-  required_version = ">= 1.14.0"
+  # Version minimale de Terraform requise
+  required_version = "1.14.0"
 
+  # On utilise le provider Google Cloud Platform
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -9,6 +12,8 @@ terraform {
   }
 }
 
+# Configuration du provider Google
+# Ces valeurs sont utilisées par défaut pour toutes les ressources
 provider "google" {
   project = var.project_id
   region  = var.region

@@ -1,3 +1,6 @@
+# Variables du module infra
+# Ces variables sont passées depuis le fichier main.tf à la racine
+
 variable "project_id" {
   type        = string
   description = "ID du projet GCP où déployer l'infrastructure"
