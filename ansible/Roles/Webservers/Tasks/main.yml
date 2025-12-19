@@ -67,11 +67,50 @@
   debug:
     msg: "État nginx après démarrage: {{ nginx_status_after_install.status.ActiveState | default('non trouvé') }}, LoadState: {{ nginx_status_after_install.status.LoadState | default('non trouvé') }}"
 
-- name: Vérifier que nginx est actif
+- name: Vérifier que nginx est actif après installation
   assert:
     that:
       - nginx_status_after_install.status.ActiveState == "active"
     fail_msg: "nginx n'est pas actif après installation. État: {{ nginx_status_after_install.status.ActiveState | default('non trouvé') }}, LoadState: {{ nginx_status_after_install.status.LoadState | default('non trouvé') }}"
+  failed_when: false
+  register: nginx_check_result
+
+- name: Créer le service systemd si nécessaire
+  copy:
+    content: |
+      [Unit]
+      Description=The nginx HTTP and reverse proxy server
+      After=network.target remote-fs.target nss-lookup.target
+
+      [Service]
+      Type=forking
+      PIDFile=/run/nginx.pid
+      ExecStartPre=/usr/sbin/nginx -t
+      ExecStart=/usr/sbin/nginx
+      ExecReload=/bin/kill -s HUP $MAINPID
+      ExecStop=/bin/kill -s QUIT $MAINPID
+      PrivateTmp=true
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/nginx.service
+    mode: '0644'
+  become: yes
+  when: nginx_status_after_install.status.LoadState == "not-found" or nginx_check_result.failed
+
+- name: Recharger systemd après création du service
+  systemd:
+    daemon_reload: yes
+  become: yes
+  when: nginx_status_after_install.status.LoadState == "not-found" or nginx_check_result.failed
+
+- name: Démarrer nginx après création du service
+  systemd:
+    name: nginx
+    enabled: yes
+    state: started
+  become: yes
+  when: nginx_status_after_install.status.LoadState == "not-found" or nginx_check_result.failed
 
 - name: Déployer la configuration nginx
   template:
