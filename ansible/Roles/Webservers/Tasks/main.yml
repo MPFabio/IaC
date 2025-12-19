@@ -6,12 +6,26 @@
     update_cache: yes
   become: yes
 
+- name: Démarrer et activer nginx (configuration par défaut)
+  systemd:
+    name: nginx
+    enabled: yes
+    state: started
+  become: yes
+
 - name: Déployer la configuration nginx
   template:
     src: default.conf.j2
     dest: /etc/nginx/sites-available/default
   become: yes
   notify: restart nginx
+
+- name: Vérifier la configuration nginx
+  command: nginx -t
+  register: nginx_test
+  changed_when: false
+  failed_when: nginx_test.rc != 0
+  become: yes
 
 - name: Déployer la page d'accueil stylée
   template:
@@ -20,9 +34,8 @@
     mode: '0644'
   become: yes
 
-- name: Démarrer et activer nginx
+- name: S'assurer que nginx est actif
   systemd:
     name: nginx
-    enabled: yes
     state: started
   become: yes
