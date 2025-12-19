@@ -69,6 +69,8 @@ jobs:
           name: plan-${{ inputs.environment }}
       - run: terraform init -backend-config="bucket=storage-fmt" -backend-config="prefix=storage-fmt-${{ inputs.environment }}"
       - run: terraform apply -auto-approve plan
+      - name: Afficher les outputs Terraform
+        run: terraform output
       - name: Récupérer les outputs Terraform
         run: terraform output -json > terraform_outputs.json
       - uses: actions/upload-artifact@v4
@@ -86,6 +88,13 @@ jobs:
         with:
           name: terraform-outputs-${{ inputs.environment }}
           path: .
+      - name: Afficher les IPs des VMs
+        run: |
+          echo "=== IPs des VMs ==="
+          jq -r '.vm_external_ips.value[] // empty' terraform_outputs.json | while read ip; do
+            [ -n "$ip" ] && [ "$ip" != "null" ] && echo "  - $ip" || true
+          done
+          echo "==================="
       - name: Configurer la clé SSH
         run: |
           mkdir -p ~/.ssh

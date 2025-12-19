@@ -3,41 +3,6 @@
   hosts: webservers
   become: yes
 
-  tasks:
-    - name: Mettre à jour le cache des paquets
-      apt:
-        update_cache: yes
-
-    - name: Installer les paquets de base
-      apt:
-        name:
-          - curl
-          - wget
-        state: present
-
-    - name: Installer nginx
-      apt:
-        name: nginx
-        state: present
-        update_cache: yes
-
-    - name: Déployer la configuration nginx
-      template:
-        src: ../Roles/Webservers/Templates/default.conf.j2
-        dest: /etc/nginx/sites-available/default
-      vars:
-        nginx_port: 80
-        nginx_server_name: "{{ ansible_hostname }}"
-      notify: restart nginx
-
-    - name: Démarrer et activer nginx
-      systemd:
-        name: nginx
-        enabled: yes
-        state: started
-
-  handlers:
-    - name: restart nginx
-      systemd:
-        name: nginx
-        state: restarted
+  roles:
+    - Common
+    - Webservers
