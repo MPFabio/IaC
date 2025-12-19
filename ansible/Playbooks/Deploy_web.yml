@@ -3,16 +3,61 @@
   hosts: webservers
   become: yes
 
-  pre_tasks:
-    - name: Afficher un message de test
-      debug:
-        msg: "Début du déploiement"
+  tasks:
+    - name: Mettre à jour le cache des paquets
+      apt:
+        update_cache: yes
 
-  roles:
-    - Common
-    - Webservers
+    - name: Installer les paquets de base
+      apt:
+        name:
+          - curl
+          - wget
+        state: present
 
-  post_tasks:
-    - name: Afficher un message de fin
-      debug:
-        msg: "Fin du déploiement"
+    - name: Installer nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: Démarrer et activer nginx avec la configuration par défaut
+      systemd:
+        name: nginx
+        enabled: yes
+        state: started
+
+    - name: S'assurer que le site par défaut est activé
+      file:
+        src: /etc/nginx/sites-available/default
+        dest: /etc/nginx/sites-enabled/default
+        state: link
+
+    - name: Déployer la configuration nginx
+      template:
+        src: Roles/Webservers/Templates/default.conf.j2
+        dest: /etc/nginx/sites-available/default
+        backup: yes
+
+    - name: S'assurer que le site reste activé après déploiement
+      file:
+        src: /etc/nginx/sites-available/default
+        dest: /etc/nginx/sites-enabled/default
+        state: link
+
+    - name: Vérifier la configuration nginx avant redémarrage
+      command: nginx -t
+      register: nginx_test
+      changed_when: false
+      failed_when: nginx_test.rc != 0
+
+    - name: Redémarrer nginx avec la nouvelle configuration
+      systemd:
+        name: nginx
+        state: restarted
+
+    - name: Déployer la page d'accueil stylée
+      template:
+        src: Roles/Webservers/Templates/index.html.j2
+        dest: /usr/share/nginx/html/index.html
+        mode: '0644'
