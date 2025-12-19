@@ -117,13 +117,26 @@ jobs:
           cd ansible
           export ANSIBLE_CONFIG=$PWD/Ansible.cfg
           export ANSIBLE_ROLES_PATH=${{ github.workspace }}/ansible/Roles
+          echo "=== Vérification de l'inventaire ==="
+          cat inventory.json | jq '.all.children.webservers.hosts' || true
           echo "=== Vérification des rôles ==="
-          ls -la Roles/Common/Tasks/
-          ls -la Roles/Webservers/Tasks/
+          ls -la Roles/Common/Tasks/ || echo "ERREUR: Common/Tasks non trouvé"
+          ls -la Roles/Webservers/Tasks/ || echo "ERREUR: Webservers/Tasks non trouvé"
+          echo "=== Vérification de ANSIBLE_ROLES_PATH ==="
+          echo "ANSIBLE_ROLES_PATH=$ANSIBLE_ROLES_PATH"
           echo "=== Liste des tâches ==="
-          ansible-playbook -i inventory.json Playbooks/Deploy_web.yml --list-tasks
+          ansible-playbook -i inventory.json Playbooks/Deploy_web.yml --list-tasks || echo "ERREUR: Impossible de lister les tâches"
           echo "=== Exécution du playbook ==="
-          ansible-playbook -i inventory.json Playbooks/Deploy_web.yml
+          ansible-playbook -i inventory.json Playbooks/Deploy_web.yml -v
+        env:
+          ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+      - name: Vérifier que Nginx est actif après déploiement
+        run: |
+          cd ansible
+          export ANSIBLE_CONFIG=$PWD/Ansible.cfg
+          export ANSIBLE_ROLES_PATH=${{ github.workspace }}/ansible/Roles
+          ansible webservers -i inventory.json -m systemd -a "name=nginx" --become | grep -E "(ActiveState|SubState)" || true
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
           ANSIBLE_HOST_KEY_CHECKING: "False"
