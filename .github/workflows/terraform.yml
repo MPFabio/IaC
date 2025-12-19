@@ -79,8 +79,8 @@ jobs:
           path: terraform_outputs.json
 
   ansible:
-    needs: apply
     if: inputs.action == 'apply'
+    needs: apply
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
