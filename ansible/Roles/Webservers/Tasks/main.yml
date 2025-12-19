@@ -19,3 +19,14 @@
     enabled: yes
     state: started
   become: yes
+  register: nginx_start_result
+
+- name: Vérifier que nginx est démarré
+  systemd:
+    name: nginx
+  register: nginx_final_status
+  failed_when: false
+
+- name: Afficher le statut de nginx
+  debug:
+    msg: "État de nginx: {{ nginx_final_status.status.ActiveState | default('inconnu') }}"

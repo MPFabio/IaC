@@ -4,8 +4,3 @@
     name: nginx
     state: restarted
   become: yes
-
-
-
-
-

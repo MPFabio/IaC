@@ -1,6 +1,10 @@
 name: Terraform
 
 on:
+  push:
+    branches:
+      - main
+      - master
   workflow_dispatch:
     inputs:
       environment:
@@ -34,7 +38,7 @@ jobs:
 
   plan:
     needs: init
-    if: inputs.action == 'apply'
+    if: (github.event_name == 'workflow_dispatch' && inputs.action == 'apply') || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,18 +48,26 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
-      - run: terraform init -backend-config="bucket=storage-fmt" -backend-config="prefix=storage-fmt-${{ inputs.environment }}"
-      - run: terraform plan -var-file=envs/${{ inputs.environment }}/terraform.tfvars -out=plan
+      - name: Déterminer l'environnement
+        id: set_env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+      - run: terraform init -backend-config="bucket=storage-fmt" -backend-config="prefix=storage-fmt-${{ steps.set_env.outputs.environment }}"
+      - run: terraform plan -var-file=envs/${{ steps.set_env.outputs.environment }}/terraform.tfvars -out=plan
       - uses: actions/upload-artifact@v4
         with:
-          name: plan-${{ inputs.environment }}
+          name: plan-${{ steps.set_env.outputs.environment }}
           path: plan
 
   apply:
     needs: plan
-    if: inputs.action == 'apply'
+    if: (github.event_name == 'workflow_dispatch' && inputs.action == 'apply') || github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -64,28 +76,44 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
+      - name: Déterminer l'environnement
+        id: set_env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
       - uses: actions/download-artifact@v4
         with:
-          name: plan-${{ inputs.environment }}
-      - run: terraform init -backend-config="bucket=storage-fmt" -backend-config="prefix=storage-fmt-${{ inputs.environment }}"
+          name: plan-${{ steps.set_env.outputs.environment }}
+      - run: terraform init -backend-config="bucket=storage-fmt" -backend-config="prefix=storage-fmt-${{ steps.set_env.outputs.environment }}"
       - run: terraform apply -auto-approve plan
       - name: Récupérer les outputs Terraform
         run: terraform output -json > terraform_outputs.json
       - uses: actions/upload-artifact@v4
         with:
-          name: terraform-outputs-${{ inputs.environment }}
+          name: terraform-outputs-${{ steps.set_env.outputs.environment }}
           path: terraform_outputs.json
 
   ansible:
     needs: apply
-    if: inputs.action == 'apply'
+    if: (github.event_name == 'workflow_dispatch' && inputs.action == 'apply') || github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
     steps:
       - uses: actions/checkout@v4
+      - name: Déterminer l'environnement
+        id: set_env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
       - uses: actions/download-artifact@v4
         with:
-          name: terraform-outputs-${{ inputs.environment }}
+          name: terraform-outputs-${{ steps.set_env.outputs.environment }}
           path: .
       - name: Configurer la clé SSH
         run: |
@@ -105,7 +133,7 @@ jobs:
       - name: Générer l'inventaire dynamique
         run: |
           cd ansible
-          python3 scripts/generate_inventory.py ../terraform_outputs.json ${{ inputs.environment }} > inventory.json 2>/dev/null
+          python3 scripts/generate_inventory.py ../terraform_outputs.json ${{ steps.set_env.outputs.environment }} > inventory.json 2>/dev/null
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
       - name: Attendre que les VMs soient prêtes
@@ -130,15 +158,16 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: "False"
       - name: Exécuter les tests
         run: |
-          cd ansible/Playbooks
-          ansible-playbook -i ../inventory.json Tests/test_nginx.yml
+          cd ansible
+          export ANSIBLE_CONFIG=$PWD/Ansible.cfg
+          export ANSIBLE_ROLES_PATH=${{ github.workspace }}/ansible/Roles
+          ansible-playbook -i inventory.json Playbooks/Tests/test_nginx.yml
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
           ANSIBLE_HOST_KEY_CHECKING: "False"
-          ANSIBLE_ROLES_PATH: ${{ github.workspace }}/ansible/Roles
 
   destroy:
-    if: inputs.action == 'destroy'
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
