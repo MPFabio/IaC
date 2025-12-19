@@ -13,18 +13,34 @@
     state: started
   become: yes
 
+- name: Vérifier que nginx est démarré après installation
+  systemd:
+    name: nginx
+  register: nginx_status_after_install
+  failed_when: nginx_status_after_install.status.ActiveState != "active"
+
 - name: Déployer la configuration nginx
   template:
     src: default.conf.j2
     dest: /etc/nginx/sites-available/default
+    backup: yes
   become: yes
-  notify: restart nginx
 
-- name: Vérifier la configuration nginx
+- name: Vérifier la configuration nginx avant redémarrage
   command: nginx -t
   register: nginx_test
   changed_when: false
   failed_when: nginx_test.rc != 0
+  become: yes
+
+- name: Afficher le résultat du test de configuration
+  debug:
+    msg: "Configuration nginx valide: {{ nginx_test.stdout_lines }}"
+
+- name: Redémarrer nginx avec la nouvelle configuration
+  systemd:
+    name: nginx
+    state: restarted
   become: yes
 
 - name: Déployer la page d'accueil stylée
@@ -34,8 +50,41 @@
     mode: '0644'
   become: yes
 
+- name: Attendre que nginx soit complètement démarré
+  wait_for:
+    port: 80
+    host: "{{ ansible_default_ipv4.address }}"
+    delay: 2
+    timeout: 10
+  become: no
+  ignore_errors: yes
+
+- name: Vérifier le statut final de nginx
+  systemd:
+    name: nginx
+  register: nginx_final_status
+  become: yes
+
+- name: Afficher le statut de nginx
+  debug:
+    msg: "État nginx: {{ nginx_final_status.status.ActiveState }}, Sous-état: {{ nginx_final_status.status.SubState }}"
+
+- name: Afficher les logs nginx en cas d'erreur
+  command: journalctl -u nginx -n 20 --no-pager
+  register: nginx_logs
+  changed_when: false
+  failed_when: false
+  become: yes
+  when: nginx_final_status.status.ActiveState != "active"
+
+- name: Afficher les logs si nginx n'est pas actif
+  debug:
+    var: nginx_logs.stdout_lines
+  when: nginx_final_status.status.ActiveState != "active"
+
 - name: S'assurer que nginx est actif
   systemd:
     name: nginx
     state: started
   become: yes
+  failed_when: false
