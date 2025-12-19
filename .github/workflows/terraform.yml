@@ -121,8 +121,7 @@ jobs:
         run: |
           cd ansible
           export ANSIBLE_CONFIG=$PWD/Ansible.cfg
-          export ANSIBLE_ROLES_PATH=${{ github.workspace }}/ansible/Roles
-          ansible-playbook -i inventory.json Playbooks/Deploy_web.yml
+          ansible-playbook -i inventory.json Playbooks/Deploy_web.yml -v
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key
           ANSIBLE_HOST_KEY_CHECKING: "False"
@@ -130,7 +129,6 @@ jobs:
         run: |
           cd ansible
           export ANSIBLE_CONFIG=$PWD/Ansible.cfg
-          export ANSIBLE_ROLES_PATH=${{ github.workspace }}/ansible/Roles
           ansible-playbook -i inventory.json Playbooks/Tests/test_nginx.yml
         env:
           ANSIBLE_SSH_KEY_PATH: ~/.ssh/ansible_key

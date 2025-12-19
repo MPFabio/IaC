@@ -3,6 +3,16 @@
   hosts: webservers
   become: yes
 
+  pre_tasks:
+    - name: Afficher un message de test
+      debug:
+        msg: "Début du déploiement"
+
   roles:
     - Common
     - Webservers
+
+  post_tasks:
+    - name: Afficher un message de fin
+      debug:
+        msg: "Fin du déploiement"
