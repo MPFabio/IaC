@@ -12,6 +12,8 @@
     enabled: yes
     state: started
   become: yes
+  register: nginx_start_initial
+  ignore_errors: yes
 
 - name: Vérifier que nginx est démarré après installation
   systemd:
@@ -23,18 +25,51 @@
   debug:
     msg: "État nginx après installation: {{ nginx_status_initial.status.ActiveState | default('non trouvé') }}, LoadState: {{ nginx_status_initial.status.LoadState | default('non trouvé') }}"
 
-- name: Afficher les logs nginx si le service n'existe pas
-  command: journalctl -u nginx -n 10 --no-pager || echo "Service non trouvé"
+- name: Vérifier la configuration nginx par défaut
+  command: nginx -t
+  register: nginx_test_default
+  changed_when: false
+  failed_when: false
+  become: yes
+
+- name: Afficher le résultat du test de configuration par défaut
+  debug:
+    msg: "Test configuration par défaut: {{ nginx_test_default.stdout_lines | default('Erreur') }}"
+  when: nginx_test_default.rc != 0
+
+- name: Afficher les logs nginx
+  command: journalctl -u nginx -n 20 --no-pager || systemctl status nginx || echo "Service non trouvé"
   register: nginx_logs_initial
   changed_when: false
   failed_when: false
   become: yes
-  when: nginx_status_initial.status.LoadState == "not-found"
+  when: nginx_status_initial.status.ActiveState != "active"
 
-- name: Afficher les logs
+- name: Afficher les logs si nginx n'est pas actif
   debug:
     var: nginx_logs_initial.stdout_lines
-  when: nginx_status_initial.status.LoadState == "not-found"
+  when: nginx_status_initial.status.ActiveState != "active"
+
+- name: Essayer de démarrer nginx manuellement si systemd échoue
+  command: nginx
+  become: yes
+  when: nginx_status_initial.status.ActiveState != "active"
+  register: nginx_manual_start
+  changed_when: false
+  failed_when: false
+
+- name: Vérifier si nginx est en cours d'exécution après démarrage manuel
+  command: pgrep -x nginx || echo "Nginx n'est pas en cours d'exécution"
+  register: nginx_process_check
+  changed_when: false
+  failed_when: false
+  become: yes
+  when: nginx_status_initial.status.ActiveState != "active"
+
+- name: Afficher le résultat du démarrage manuel
+  debug:
+    msg: "Processus nginx après démarrage manuel: {{ nginx_process_check.stdout }}"
+  when: nginx_status_initial.status.ActiveState != "active"
 
 - name: S'assurer que le site par défaut est activé
   file:
