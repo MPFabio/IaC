@@ -6,8 +6,27 @@
   vars:
     nginx_port: 80
     nginx_server_name: "{{ ansible_hostname }}"
+    debug_log_path: "{{ playbook_dir }}/../../.cursor/debug.log"
 
   tasks:
+    # #region agent log - Debug: Variables disponibles
+    - name: Logger - Vérifier les variables disponibles (Hypothèse A)
+      command: python3 {{ playbook_dir }}/../scripts/debug_logger.py "A" "Deploy_web.yml:vars" "Variables définies" "{\"nginx_port\": \"{{ nginx_port }}\", \"nginx_server_name\": \"{{ nginx_server_name }}\", \"ansible_hostname\": \"{{ ansible_hostname }}\"}"
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      run_once: true
+    # #endregion
+
+    # #region agent log - Debug: Variables fact disponibles
+    - name: Logger - Vérifier les variables fact (Hypothèse B)
+      command: python3 {{ playbook_dir }}/../scripts/debug_logger.py "B" "Deploy_web.yml:facts" "Variables fact disponibles" "{\"ansible_distribution\": \"{{ ansible_distribution | default('non défini') }}\"}"
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      run_once: true
+    # #endregion
+
     - name: Mettre à jour le cache des paquets
       apt:
         update_cache: yes
@@ -37,11 +56,30 @@
         dest: /etc/nginx/sites-enabled/default
         state: link
 
+    # #region agent log - Debug: Vérifier le chemin du template (Hypothèse C)
+    - name: Logger - Vérifier le chemin du template (Hypothèse C)
+      command: python3 {{ playbook_dir }}/../scripts/debug_logger.py "C" "Deploy_web.yml:template_path" "Vérification chemin template" "{\"playbook_dir\": \"{{ playbook_dir }}\", \"template_src\": \"../Roles/Webservers/Templates/default.conf.j2\"}"
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      run_once: true
+    # #endregion
+
     - name: Déployer la configuration nginx
       template:
         src: ../Roles/Webservers/Templates/default.conf.j2
         dest: /etc/nginx/sites-available/default
         backup: yes
+      register: nginx_config_result
+
+    # #region agent log - Debug: Résultat du déploiement du template
+    - name: Logger - Résultat déploiement template (Hypothèse D)
+      command: python3 {{ playbook_dir }}/../scripts/debug_logger.py "D" "Deploy_web.yml:template_result" "Résultat déploiement template" "{\"changed\": {{ nginx_config_result.changed | default(false) | to_json }}, \"failed\": {{ nginx_config_result.failed | default(false) | to_json }}}"
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      run_once: true
+    # #endregion
 
     - name: S'assurer que le site reste activé après déploiement
       file:
@@ -49,19 +87,80 @@
         dest: /etc/nginx/sites-enabled/default
         state: link
 
+    # #region agent log - Debug: Contenu du fichier de configuration généré
+    - name: Logger - Lire contenu configuration nginx (Hypothèse D)
+      slurp:
+        src: /etc/nginx/sites-available/default
+      register: nginx_config_content
+      changed_when: false
+      failed_when: false
+
+    - name: Logger - Afficher contenu config (Hypothèse D)
+      command: python3 {{ playbook_dir }}/../scripts/debug_logger.py "D" "Deploy_web.yml:config_content" "Contenu configuration nginx" "{\"content_length\": {{ nginx_config_content.content | length }}}"
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      run_once: true
+    # #endregion
+
     - name: Vérifier la configuration nginx avant redémarrage
       command: nginx -t
       register: nginx_test
       changed_when: false
       failed_when: nginx_test.rc != 0
 
+    # #region agent log - Debug: Résultat du test nginx (Hypothèse E)
+    - name: Logger - Résultat test nginx (Hypothèse E)
+      command: python3 {{ playbook_dir }}/../scripts/debug_logger.py "E" "Deploy_web.yml:nginx_test" "Résultat test nginx" "{\"rc\": {{ nginx_test.rc | default(-1) }}, \"failed\": {{ nginx_test.failed | default(false) | to_json }}}"
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      run_once: true
+    # #endregion
+
     - name: Redémarrer nginx avec la nouvelle configuration
       systemd:
         name: nginx
         state: restarted
+      register: nginx_restart_result
+
+    # #region agent log - Debug: Résultat du redémarrage (Hypothèse D)
+    - name: Logger - Résultat redémarrage nginx (Hypothèse D)
+      command: python3 {{ playbook_dir }}/../scripts/debug_logger.py "D" "Deploy_web.yml:nginx_restart" "Résultat redémarrage nginx" "{\"changed\": {{ nginx_restart_result.changed | default(false) | to_json }}, \"failed\": {{ nginx_restart_result.failed | default(false) | to_json }}}"
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      run_once: true
+    # #endregion
 
     - name: Déployer la page d'accueil stylée
       template:
         src: ../Roles/Webservers/Templates/index.html.j2
         dest: /usr/share/nginx/html/index.html
         mode: '0644'
+      register: index_html_result
+
+    # #region agent log - Debug: Résultat déploiement index.html (Hypothèse B)
+    - name: Logger - Résultat déploiement index.html (Hypothèse B)
+      command: python3 {{ playbook_dir }}/../scripts/debug_logger.py "B" "Deploy_web.yml:index_html" "Résultat déploiement index.html" "{\"changed\": {{ index_html_result.changed | default(false) | to_json }}, \"failed\": {{ index_html_result.failed | default(false) | to_json }}}"
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      run_once: true
+    # #endregion
+
+    # #region agent log - Debug: État final de nginx
+    - name: Logger - État final nginx (Hypothèse D)
+      systemd:
+        name: nginx
+      register: nginx_final_status
+      changed_when: false
+      failed_when: false
+
+    - name: Logger - Afficher état final (Hypothèse D)
+      command: python3 {{ playbook_dir }}/../scripts/debug_logger.py "D" "Deploy_web.yml:final_status" "État final nginx" "{\"ActiveState\": \"{{ nginx_final_status.status.ActiveState | default('non trouvé') }}\", \"LoadState\": \"{{ nginx_final_status.status.LoadState | default('non trouvé') }}\", \"SubState\": \"{{ nginx_final_status.status.SubState | default('non trouvé') }}\"}"
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      run_once: true
+    # #endregion
