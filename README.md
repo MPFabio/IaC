@@ -6,7 +6,7 @@ Ce projet déploie une infrastructure complète sur Google Cloud Platform avec T
 
 Le projet crée :
 - **1 VPC** (réseau virtuel) par environnement
-- **2 VMs** Debian 12 avec IP publique statique
+- **2 VMs** Debian 12 (Bookworm) avec IP publique statique
 - **Règles de firewall** pour SSH (port 22) et HTTP (port 80)
 - **Nginx** déployé automatiquement via Ansible
 
@@ -34,16 +34,25 @@ Le projet crée :
 │
 └── ansible/                # Configuration et déploiement Ansible
     ├── Ansible.cfg         # Configuration Ansible
+    ├── Requierments.yml    # Collections Ansible requises
     ├── Playbooks/          # Playbooks de déploiement
+    │   ├── Deploy_web.yml  # Playbook principal de déploiement
+    │   └── Tests/          # Playbooks de tests
+    │       └── test_nginx.yml
     ├── Roles/              # Rôles Ansible (Common, Webservers)
-    └── scripts/            # Scripts utilitaires (génération d'inventaire)
+    │   ├── Common/         # Rôle commun (packages de base)
+    │   └── Webservers/     # Rôle webservers (Nginx)
+    ├── scripts/            # Scripts utilitaires
+    │   └── generate_inventory.py  # Génération d'inventaire dynamique
+    └── inventories/        # Inventaires statiques (optionnel)
+        └── Prod/
 ```
 
 ## Prérequis
 
 ### Sur votre machine locale
 
-- **Terraform** >= 1.14.0
+- **Terraform** 1.14.0
 - **Ansible** (optionnel, car le pipeline GitHub Actions le fait automatiquement)
 - **Compte GCP** avec un projet créé
 - **Service Account GCP** avec les permissions nécessaires
@@ -52,8 +61,11 @@ Le projet crée :
 ### Sur GitHub
 
 - **Secrets GitHub** configurés :
-  - `GOOGLE_CREDENTIALS` : JSON du service account GCP
-  - `ANSIBLE_SSH_PRIVATE_KEY` : Clé privée SSH correspondant à la clé publique dans `terraform.tfvars`
+  - `GOOGLE_CREDENTIALS` : JSON du service account GCP (utilisé par Terraform pour s'authentifier)
+  - `ANSIBLE_SSH_PRIVATE_KEY` : **Clé privée SSH complète** (contenu du fichier `~/.ssh/ansible_key`)
+    - Cette clé doit correspondre exactement à la clé publique dans `terraform.tfvars`
+    - Le pipeline GitHub Actions récupère ce secret et l'écrit dans `~/.ssh/ansible_key` sur le runner
+    - Ansible utilise ensuite cette clé pour se connecter aux VMs créées par Terraform
 
 ### Infrastructure GCP
 
@@ -78,7 +90,17 @@ vm_ips         = []  # Laisser vide pour auto-génération
 ssh_public_key = "ssh-rsa VOTRE_CLE_PUBLIQUE ansible"
 ```
 
+**Note sur les fichiers tfvars** :
+- Les fichiers `terraform.tfvars` sont actuellement trackés par Git dans ce projet
+- Ils contiennent la clé publique SSH (qui peut être partagée) et le project_id
+- **Bonnes pratiques** : Pour des projets sensibles, vous pouvez :
+  - Ajouter `*.tfvars` au `.gitignore` pour ignorer tous les tfvars
+  - Ou créer des fichiers `terraform.tfvars.example` avec des valeurs d'exemple
+  - Les fichiers `*.auto.tfvars` et `secrets.tfvars` sont déjà ignorés par défaut
+
 ### 2. Générer une paire de clés SSH
+
+**Important** : Vous devez créer vous-même la paire de clés SSH. Elle ne sera pas générée automatiquement.
 
 Si vous n'avez pas encore de clé SSH :
 
@@ -86,9 +108,19 @@ Si vous n'avez pas encore de clé SSH :
 ssh-keygen -t rsa -b 4096 -f ~/.ssh/ansible_key -C "ansible"
 ```
 
-Puis :
-- **Clé publique** → copiez-la dans `terraform.tfvars` (variable `ssh_public_key`)
-- **Clé privée** → ajoutez-la dans les secrets GitHub (`ANSIBLE_SSH_PRIVATE_KEY`)
+Cette commande crée deux fichiers :
+- `~/.ssh/ansible_key` : **Clé privée** (à garder secrète)
+- `~/.ssh/ansible_key.pub` : **Clé publique** (peut être partagée)
+
+**Configuration de la clé :**
+
+1. **Clé publique** → copiez son contenu dans `terraform.tfvars` (variable `ssh_public_key`)
+   - Terraform injectera cette clé dans les métadonnées des VMs lors de leur création
+   - Cela permet à l'utilisateur `ansible` de se connecter en SSH avec la clé privée correspondante
+
+2. **Clé privée** → ajoutez son contenu complet dans les secrets GitHub (`ANSIBLE_SSH_PRIVATE_KEY`)
+   - Le pipeline GitHub Actions utilisera cette clé privée pour que Ansible puisse se connecter aux VMs
+   - **Ne commitez jamais la clé privée dans le dépôt Git**
 
 ### 3. Configurer le backend Terraform
 
@@ -113,10 +145,13 @@ terraform init \
 5. Le pipeline va :
    - Valider le code Terraform
    - Créer un plan (si `apply`)
-   - Demander confirmation (si `apply`)
-   - Appliquer les changements
-   - Générer l'inventaire Ansible automatiquement
-   - Déployer Nginx sur les VMs
+   - Appliquer les changements et créer les VMs avec la clé publique SSH
+   - Récupérer les outputs Terraform (IPs des VMs) et les sauvegarder en JSON
+   - Récupérer la clé privée SSH depuis le secret GitHub `ANSIBLE_SSH_PRIVATE_KEY`
+   - Générer l'inventaire Ansible dynamiquement depuis les outputs Terraform
+   - Attendre que les VMs soient accessibles via SSH
+   - Déployer Nginx sur les VMs avec Ansible
+   - Exécuter les tests pour vérifier que Nginx fonctionne
 
 ### En local (pour tester)
 
@@ -156,12 +191,25 @@ Après un `terraform apply`, vous pouvez voir :
 
 ## Ansible
 
+### Flux Terraform → Pipeline → Ansible
+
+Le processus de déploiement suit ce flux :
+
+1. **Terraform** crée les VMs avec la clé publique SSH injectée dans les métadonnées
+2. **Pipeline GitHub Actions** :
+   - Récupère les outputs Terraform (IPs des VMs) et les sauvegarde en JSON
+   - Récupère la clé privée SSH depuis le secret GitHub `ANSIBLE_SSH_PRIVATE_KEY`
+   - Génère l'inventaire Ansible dynamiquement
+3. **Ansible** utilise la clé privée pour se connecter aux VMs et déployer Nginx
+
 ### Génération de l'inventaire
 
 L'inventaire Ansible est généré automatiquement par le script `ansible/scripts/generate_inventory.py` qui :
-1. Lit les outputs Terraform (fichier JSON)
-2. Extrait les IPs des VMs
-3. Génère un fichier `inventory.json` avec les variables nécessaires
+1. Lit les outputs Terraform (fichier JSON créé par le pipeline)
+2. Extrait les IPs publiques des VMs
+3. Génère un fichier `inventory.json` avec les variables nécessaires (utilisateur `ansible`, chemin de la clé SSH, etc.)
+
+Le script utilise la variable d'environnement `ANSIBLE_SSH_KEY_PATH` définie dans le pipeline pour référencer la clé privée.
 
 ### Rôles Ansible
 
@@ -198,9 +246,17 @@ Les IPs sont affichées dans les outputs Terraform et dans les logs du pipeline 
 
 **Points d'attention** :
 
-- Les règles de firewall autorisent SSH et HTTP depuis `0.0.0.0/0` (n'importe où). Pour la production, restreignez les `source_ranges` dans `modules/infra/main.tf`.
-- La clé privée SSH est stockée dans les secrets GitHub. Ne la commitez jamais dans le dépôt.
-- Le state Terraform contient des informations sensibles. Le bucket GCS doit être sécurisé.
+- **Clés SSH** :
+  - La clé privée SSH est stockée dans les secrets GitHub (`ANSIBLE_SSH_PRIVATE_KEY`). Ne la commitez jamais dans le dépôt.
+  - La clé publique est dans `terraform.tfvars` et est injectée dans les métadonnées des VMs par Terraform.
+  - Vous devez créer vous-même la paire de clés (elle n'est pas générée automatiquement).
+  - Le pipeline GitHub Actions récupère la clé privée du secret et l'utilise pour que Ansible se connecte aux VMs.
+
+- **Firewall** :
+  - Les règles de firewall autorisent SSH et HTTP depuis `0.0.0.0/0` (n'importe où). Pour la production, restreignez les `source_ranges` dans `modules/infra/main.tf`.
+
+- **State Terraform** :
+  - Le state Terraform contient des informations sensibles. Le bucket GCS doit être sécurisé avec des permissions restrictives.
 
 ## Dépannage
 
